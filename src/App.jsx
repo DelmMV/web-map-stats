@@ -1,5 +1,5 @@
 import { ChakraProvider } from '@chakra-ui/react';
-import { Routes, Route, HashRouter} from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import NavBar from './NavBar.jsx';
 import UserMap from './UserMap.jsx';
 import TopUsers from "./TopUsers.jsx";
@@ -10,14 +10,14 @@ function App() {
   
   return (
       <ChakraProvider>
-        <HashRouter>
+        <Router>
           <NavBar />
           <Routes>
             <Route path="/" element={<WeeklyStats userId={userId} />} />
             <Route path="/routes" element={<UserMap userId={userId} />} />
             <Route path="/top-users" element={<TopUsers />} />
           </Routes>
-        </HashRouter>
+        </Router>
       </ChakraProvider>
   );
 }
