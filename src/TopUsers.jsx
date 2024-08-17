@@ -12,7 +12,7 @@ const TopUsers = () => {
 			setLoading(true);
 			setError(null);
 			try {
-				const response = await fetch(`https://188.243.88.61:5001/api/top-users/${period}`);
+				const response = await fetch(`https://monopiter.ru/api/top-users/${period}`);
 				if (!response.ok) {
 					throw new Error(`HTTP error! Status: ${response.status}`);
 				}

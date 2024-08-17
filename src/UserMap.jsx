@@ -12,7 +12,7 @@ function UserMap({ userId }) {
 	
 	const fetchRoute = useCallback(async () => {
 		const { start, end } = dateRange;
-		const url = new URL(`https://188.243.88.61:5001/api/route/${userId}`);
+		const url = new URL(`https://monopiter.ru/api/route/${userId}`);
 		
 		if (start && end) {
 			url.searchParams.append('startDate', start);
