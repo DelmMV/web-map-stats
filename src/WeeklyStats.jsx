@@ -33,7 +33,9 @@ const WeeklyStats = ({ userId }) => {
 				<Heading mb={5}>Мой недельный пробег</Heading>
 				
 				{loading ? (
-						<Spinner size="xl" />
+						<Box align="center">
+							<Spinner size="xl"/>
+						</Box>
 				) : error ? (
 						<Text color="red.500">{error}</Text>
 				) : (

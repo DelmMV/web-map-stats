@@ -6,7 +6,7 @@ import { Box, Button, FormControl, FormLabel, Input, Text, VStack, HStack } from
 function UserMap({ userId }) {
 	const today = new Date().toISOString().split('T')[0];
 	
-	const [route, setRoute] = useState([]);
+	const [routes, setRoutes] = useState([]);
 	const [dateRange, setDateRange] = useState({ start: today, end: today });
 	const [status, setStatus] = useState({ loading: false, error: null });
 	
@@ -31,7 +31,16 @@ function UserMap({ userId }) {
 			if (data.length === 0) {
 				setStatus({ loading: false, error: 'Маршрут не найден для указанного периода' });
 			} else {
-				setRoute(data);
+				// Group routes by session
+				const groupedRoutes = data.reduce((acc, point) => {
+					const sessionId = point.sessionId; // Assuming each point has a sessionId
+					if (!acc[sessionId]) {
+						acc[sessionId] = [];
+					}
+					acc[sessionId].push(point);
+					return acc;
+				}, {});
+				setRoutes(groupedRoutes);
 				setStatus({ loading: false, error: null });
 			}
 		} catch (error) {
@@ -60,8 +69,15 @@ function UserMap({ userId }) {
 		fetchRoute();
 	};
 	
-	const positions = useMemo(() => route.map(point => [point.latitude, point.longitude]), [route]);
-	const mapBounds = useMemo(() => positions.length > 0 ? positions : [[60.041349, 30.407739]], [positions]);
+	const sessionColors = useMemo(() => {
+		// Generate different colors for each session
+		const colors = Object.keys(routes).map((_, idx) => {
+			const hue = (idx * 60) % 360; // Generate different hues
+			const saturation = 100; // Full saturation
+			const lightness = 30; // Lower lightness for darker colors
+			return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+		});		return colors;
+	}, [routes]);
 	
 	return (
 			<Box display="flex" flexDirection="column" height="91.5vh" p={0} m={0}>
@@ -93,35 +109,73 @@ function UserMap({ userId }) {
 				
 				{status.error && <Text color="red.500" paddingLeft={1}>{status.error}</Text>}
 				
-				{!status.error && positions.length === 0 && !status.loading && (
+				{!status.error && Object.keys(routes).length === 0 && !status.loading && (
 						<Text>Выберите даты и нажмите "Поиск" для отображения маршрута</Text>
 				)}
 				
 				<Box flex="1" p={0} m={0}>
-					<MapContainer bounds={mapBounds} attributionControl={false} style={{ height: '100%', width: '100%' }}>
+					<MapContainer
+							center={[59.938676, 30.314487]} // Default center
+							zoom={10}
+							attributionControl={false}
+							style={{ height: '100%', width: '100%' }}
+					>
 						<TileLayer
 								url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 								attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
 						/>
-						{positions.length > 0 && (
-								<>
-									<Polyline positions={positions} color="blue" weight={3} />
-									{positions.map((pos, idx) => (
-											<CircleMarker
-													key={idx}
-													center={pos}
-													radius={3}
-													fillColor="red"
-													color="white"
-													weight={1}
-													opacity={1}
-													fillOpacity={0.8}
-											>
-												<Popup>{`Время: ${new Date(route[idx].timestamp * 1000).toLocaleString()}`}</Popup>
-											</CircleMarker>
-									))}
-								</>
-						)}
+						{Object.keys(routes).map((sessionId, idx) => {
+							const sessionRoute = routes[sessionId];
+							const sessionPositions = sessionRoute.map(point => [point.latitude, point.longitude]);
+							
+							return (
+									<React.Fragment key={sessionId}>
+										<Polyline positions={sessionPositions} color={sessionColors[idx]} weight={3} />
+										
+										{/* Start marker for the session */}
+										<CircleMarker
+												center={sessionPositions[0]}
+												radius={5}
+												fillColor="blue"
+												color="darkblue"
+												weight={3}
+												opacity={1}
+												fillOpacity={1}
+										>
+											<Popup>{`Начало трека (Сессия ${sessionId}): ${new Date(sessionRoute[0].timestamp * 1000).toLocaleString()}`}</Popup>
+										</CircleMarker>
+										
+										{/* End marker for the session */}
+										<CircleMarker
+												center={sessionPositions[sessionPositions.length - 1]}
+												radius={5}
+												fillColor="red"
+												color="darkred"
+												weight={3}
+												opacity={1}
+												fillOpacity={1}
+										>
+											<Popup>{`Конец трека (Сессия ${sessionId}): ${new Date(sessionRoute[sessionRoute.length - 1].timestamp * 1000).toLocaleString()}`}</Popup>
+										</CircleMarker>
+										
+										{/* Small markers along the route */}
+										{sessionPositions.slice(1, -1).map((pos, posIdx) => (
+												<CircleMarker
+														key={posIdx}
+														center={pos}
+														radius={3}
+														fillColor="red"
+														color="white"
+														weight={1}
+														opacity={1}
+														fillOpacity={0.8}
+												>
+													<Popup>{`Время: ${new Date(sessionRoute[posIdx + 1].timestamp * 1000).toLocaleString()}`}</Popup>
+												</CircleMarker>
+										))}
+									</React.Fragment>
+							);
+						})}
 					</MapContainer>
 				</Box>
 			</Box>
