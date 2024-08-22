@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Heading, Text, Stack, Spinner } from '@chakra-ui/react';
+import {Box, Text, Stack, Spinner, Badge, Divider} from '@chakra-ui/react';
 
 const WeeklyStats = ({ userId }) => {
 	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
+	const [todayDistance, setTodayDistance] = useState(null);
 	
 	useEffect(() => {
 		const fetchStats = async () => {
@@ -17,6 +18,16 @@ const WeeklyStats = ({ userId }) => {
 				}
 				const data = await response.json();
 				setStats(data);
+				
+				// Определение текущего дня недели
+				const daysOfWeek = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+				const todayIndex = new Date().getDay();
+				const today = daysOfWeek[todayIndex];
+				
+				// Получение пробега за сегодняшний день
+				const todayStat = data.dailyStats.find(stat => stat.day === today);
+				setTodayDistance(todayStat ? todayStat.distance.toFixed(2) : '0.00');
+				
 			} catch (error) {
 				console.error('Error fetching weekly stats:', error);
 				setError('Failed to load data');
@@ -29,23 +40,31 @@ const WeeklyStats = ({ userId }) => {
 	}, [userId]);
 	
 	return (
-			<Box p={5} maxW="800px" mx="auto">
-				<Heading mb={5}>Мой недельный пробег</Heading>
-				
+			<Box p={5} maxW="800px" mx="auto" marginBottom="60px">
+				<Box align="center">
+					<Badge   bgColor="gray.100"
+									 mb={5}
+									 borderRadius={10}
+									 fontSize={23}>
+						Недельный пробег
+					</Badge>
+				</Box>
+				<Divider bg="black.700"/>
 				{loading ? (
 						<Box align="center">
-							<Spinner size="xl"/>
+							<Spinner size="xl" />
 						</Box>
 				) : error ? (
 						<Text color="red.500">{error}</Text>
 				) : (
 						stats && (
 								<Box>
-									<Text fontWeight="bold">Общая дистанция: {stats.totalDistance.toFixed(2)} km</Text>
+									<Text fontWeight="bold">Общий пробег: {stats.totalDistance.toFixed(2)} km</Text>
+									<Text color="blue.500" fontWeight="bold">Дневной пробег: {todayDistance} km</Text>
 									<Text fontWeight="bold">Средняя скорость: {stats.averageSpeed.toFixed(2)} km/h</Text>
 									
-									<Heading size="md" mt={5} mb={3}>Недельная статистика</Heading>
-									<Stack spacing={3}>
+									{/*<Heading size="md" mt={2} mb={3}>Недельная статистика</Heading>*/}
+									<Stack spacing={3} mt={3}>
 										{stats.dailyStats.map((dayStat, index) => (
 												<Box
 														key={index}
