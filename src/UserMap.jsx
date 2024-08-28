@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import {MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker} from 'react-leaflet';
+import {MapContainer, TileLayer, Polyline, Popup, Marker} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Box, Button, FormControl, FormLabel, Input, Text, VStack, HStack, Flex, IconButton } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import haversine from 'haversine-distance';
+import {CiRoute} from "react-icons/ci";
 
 function UserMap({ userId }) {
 	const today = new Date().toISOString().split('T')[0];
@@ -18,10 +19,18 @@ function UserMap({ userId }) {
 	const fetchRoute = useCallback(async () => {
 		const { start, end } = dateRange;
 		const url = new URL(`https://monopiter.ru/api/route/${userId}`);
-		
 		if (start && end) {
-			url.searchParams.append('startDate', start);
-			url.searchParams.append('endDate', end);
+			// Convert dates to Date objects
+			const startDate = new Date(start);
+			const endDate = new Date(end);
+			// Set the time of endDate to 23:59:59
+			endDate.setHours(23, 59, 59, 999);
+			
+			// Format dates for the API
+			const formattedStartDate = startDate.toISOString();
+			const formattedEndDate = endDate.toISOString();
+			url.searchParams.append('startDate', formattedStartDate);
+			url.searchParams.append('endDate', formattedEndDate);
 		}
 		
 		setStatus({ loading: true, error: null });
@@ -84,10 +93,22 @@ function UserMap({ userId }) {
 	
 	const handleSearch = (e) => {
 		e.preventDefault();
-		if (new Date(dateRange.start) > new Date(dateRange.end)) {
+		
+		const startDate = new Date(dateRange.start);
+		const endDate = new Date(dateRange.end);
+		// Установим конец дня для конечной даты
+		endDate.setHours(23, 59, 59, 999);
+		
+		if (startDate > endDate) {
 			setStatus({ loading: false, error: 'Дата начала должна быть раньше или равна дате окончания' });
 			return;
 		}
+		
+		setDateRange({
+			start: startDate.toISOString().split('T')[0],
+			end: endDate.toISOString()
+		});
+		
 		fetchRoute();
 	};
 	
@@ -141,9 +162,9 @@ function UserMap({ userId }) {
 	const endIcon = createCustomIcon('red', 'F');
 
 	return (
-			<Box display="flex" flexDirection="column" height="92.5vh" p={0} m={0}>
-				<VStack as="form" onSubmit={handleSearch} spacing={2} align="center" width={{ base: '100%', md: '400px' }} p={1}>
-					<HStack spacing={2} width="100%">
+			<Box display="flex" flexDirection="column" height="100vh" paddingBottom="64px">
+				<VStack as="form" onSubmit={handleSearch} spacing={1} align="center" width={{ base: '100%', md: '400px' }} p={1}>
+					<HStack spacing={1} width="100%">
 						<FormControl isRequired>
 							<FormLabel>Начальная дата</FormLabel>
 							<Input
@@ -175,7 +196,7 @@ function UserMap({ userId }) {
 				)}
 				
 				{Object.keys(routes.data).length > 0 && (
-						<Flex align="center" p={2}>
+						<Flex align="center" paddingLeft={1} paddingRight={1}>
 							<IconButton
 									icon={<ChevronLeftIcon />}
 									onClick={() => handleScroll('left')}
@@ -202,10 +223,12 @@ function UserMap({ userId }) {
 													colorScheme={visibleSessions[sessionId] ? "green" : "gray"}
 													onClick={() => toggleSession(sessionId)}
 													flexShrink={0}
+													paddingLeft={1}
+													paddingRight={1}
 											>
-												Маршрут {sessionId}
+												<Text display="flex" flexDirection="row"><CiRoute size="17px"/>{(routes.distances[sessionId] / 1000).toFixed(2)} км</Text>
 											</Button>
-									))}
+										))}
 								</HStack>
 							</Box>
 							<IconButton
@@ -217,7 +240,7 @@ function UserMap({ userId }) {
 						</Flex>
 				)}
 				
-				<Box flex="1" p={0} m={0}>
+				<Box flex="1" position="relative" overflow="hidden">
 					<MapContainer
 							center={[59.938676, 30.314487]}
 							zoom={10}
@@ -252,12 +275,12 @@ function UserMap({ userId }) {
 				</Box>
 				
 				{!status.loading && !status.error && (
-						<Box p={2} bg="transparent" bgColor="white" borderWidth="2px" borderColor="gray">
-							<Text fontWeight="bold">Длина активных маршрутов:</Text>
+						<Box p={1} bgColor="white" borderWidth="2px" borderColor="gray">
+							<Text fontWeight="bold" fontSize="smaller">Длина активных маршрутов:</Text>
 							{activeSessions.map((sessionId) => (
-									<Text key={sessionId}>{`Маршрут ${sessionId}: ${(routes.distances[sessionId] / 1000).toFixed(2)} км`}</Text>
+									<Text key={sessionId} fontSize="smaller">{`Маршрут: ${(routes.distances[sessionId] / 1000).toFixed(2)} км`}</Text>
 							))}
-							<Text fontWeight="bold" mt={2}>
+							<Text fontWeight="bold" mt={1} fontSize="smaller">
 								Общий пробег активных маршутов: {(totalActiveDistance / 1000).toFixed(2)} км
 							</Text>
 						</Box>

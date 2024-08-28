@@ -1,90 +1,119 @@
 import React, { useState, useEffect } from 'react';
-import {Box, Text, Stack, Spinner, Badge, Divider} from '@chakra-ui/react';
+import { Box, Text, Stack, Spinner, Badge, Card, CardBody } from '@chakra-ui/react';
 
 const WeeklyStats = ({ userId }) => {
-	const [stats, setStats] = useState(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState(null);
-	const [todayDistance, setTodayDistance] = useState(null);
-	
-	useEffect(() => {
-		const fetchStats = async () => {
-			setLoading(true);
-			setError(null);
-			try {
-				const response = await fetch(`https://monopiter.ru/api/user-stats/week/${userId}`);
-				if (!response.ok) {
-					throw new Error(`HTTP error! Status: ${response.status}`);
-				}
-				const data = await response.json();
-				setStats(data);
-				
-				// Определение текущего дня недели
-				const daysOfWeek = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-				const todayIndex = new Date().getDay();
-				const today = daysOfWeek[todayIndex];
-				
-				// Получение пробега за сегодняшний день
-				const todayStat = data.dailyStats.find(stat => stat.day === today);
-				setTodayDistance(todayStat ? todayStat.distance.toFixed(2) : '0.00');
-				
-			} catch (error) {
-				console.error('Error fetching weekly stats:', error);
-				setError('Failed to load data');
-			} finally {
-				setLoading(false);
-			}
-		};
-		
-		fetchStats();
-	}, [userId]);
-	
-	return (
-			<Box p={5} maxW="800px" mx="auto" marginBottom="60px">
-				<Box align="center">
-					<Badge   bgColor="gray.100"
-									 mb={5}
-									 borderRadius={10}
-									 fontSize={23}>
-						Недельный пробег
-					</Badge>
-				</Box>
-				<Divider bg="black.700"/>
-				{loading ? (
-						<Box align="center">
-							<Spinner size="xl" />
-						</Box>
-				) : error ? (
-						<Text color="red.500">{error}</Text>
-				) : (
-						stats && (
-								<Box>
-									<Text fontWeight="bold">Общий пробег: {stats.totalDistance.toFixed(2)} km</Text>
-									<Text color="blue.500" fontWeight="bold">Дневной пробег: {todayDistance} km</Text>
-									<Text fontWeight="bold">Средняя скорость: {stats.averageSpeed.toFixed(2)} km/h</Text>
-									
-									{/*<Heading size="md" mt={2} mb={3}>Недельная статистика</Heading>*/}
-									<Stack spacing={3} mt={3}>
-										{stats.dailyStats.map((dayStat, index) => (
-												<Box
-														key={index}
-														p={3}
-														borderWidth="1px"
-														borderRadius="lg"
-														overflow="hidden"
-														bg="gray.100"
-												>
-													<Text fontWeight="bold">{dayStat.day}</Text>
-													<Text>Расстояние: {dayStat.distance.toFixed(2)} km</Text>
-													<Text>Средняя скорость: {dayStat.averageSpeed.toFixed(2)} km/h</Text>
-												</Box>
-										))}
-									</Stack>
-								</Box>
-						)
-				)}
-			</Box>
-	);
+  const [stats, setStats] = useState(null);
+  const [distanceCategory, setDistanceCategory] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [todayDistance, setTodayDistance] = useState(null);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [weeklyStatsResponse, distanceCategoryResponse] = await Promise.all([
+          fetch(`https://monopiter.ru/api/user-stats/week/${userId}`),
+          fetch(`https://monopiter.ru/api/user-category-by-distance/${userId}`)
+        ]);
+        
+        if (!weeklyStatsResponse.ok || !distanceCategoryResponse.ok) {
+          throw new Error(`HTTP error! Status: ${weeklyStatsResponse.status} ${distanceCategoryResponse.status}`);
+        }
+        
+        const [weeklyData, categoryData] = await Promise.all([
+          weeklyStatsResponse.json(),
+          distanceCategoryResponse.json()
+        ]);
+        
+        setStats(weeklyData);
+        setDistanceCategory(categoryData);
+        
+        const daysOfWeek = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+        const todayIndex = new Date().getDay();
+        const today = daysOfWeek[todayIndex];
+        
+        const todayStat = weeklyData.dailyStats.find(stat => stat.day === today);
+        setTodayDistance(todayStat ? todayStat.distance.toFixed(2) : '0.00');
+        
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError('Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [userId]);
+  
+  return (
+    <Box p={5} maxW="800px" mx="auto" marginBottom="60px">
+      <Box align="center">
+        <Badge bgColor="gray.100" borderRadius={10} fontSize={23}>
+          Общая статистика
+        </Badge>
+      </Box>
+      {loading ? (
+        <Box align="center">
+          <Spinner size="xl" />
+        </Box>
+      ) : error ? (
+        <Text color="red.500">{error}</Text>
+      ) : (
+        stats && distanceCategory && (
+          <Box>
+            <Card mb={3} mt={3}>
+              <CardBody p={2}>
+                <Text>Общее расстояние: <Text as="span">{distanceCategory.totalDistance} km</Text></Text>
+                <Text>Недельный пробег: <Text as="span">{stats.totalDistance.toFixed(2)} km</Text></Text>
+                <Text>Дневной пробег: <Text as="span">{todayDistance} km</Text></Text>
+              </CardBody>
+            </Card>  
+            <Card mb={3}>
+              <CardBody p={2}>
+                {distanceCategory.category === 'north' ? (
+                  <Text>
+                    <Text as="span" color="blue.400" fontWeight="bold">Братсво Cеверного Бублика:</Text>
+                  </Text>
+                ) : (
+                  <Text>
+                    <Text as="span" color="red" fontWeight="bold">Южный СКА Сквад:</Text>
+                  </Text>
+                )}
+                <Text>Пробег на севере: <Text as="span" color="blue.400">{distanceCategory.northDistance} km ({distanceCategory.percentageInNorth}%)</Text></Text>
+                <Text>Пробег на юге: <Text as="span" color="red">{distanceCategory.southDistance} km ({distanceCategory.percentageInSouth}%)</Text></Text>
+              </CardBody>
+            </Card>
+            
+            <Box align="center">
+              <Badge bgColor="gray.100" borderRadius={10} fontSize={20}>
+                Недельный пробег
+              </Badge>
+            </Box>
+            
+            <Stack spacing={3} mt={3}>
+              {stats.dailyStats.map((dayStat, index) => (
+                <Box
+                  key={index}
+                  p={1.5}
+                  borderWidth="1px"
+                  borderRadius="lg"
+                  overflow="hidden"
+                  bg="gray.100"
+                >
+                  <Text fontWeight="bold">{dayStat.day}</Text>
+                  <Text>Расстояние: <Text as="span">{dayStat.distance.toFixed(2)} km</Text></Text>
+                  <Text>Средняя скорость: <Text as="span">{dayStat.averageSpeed.toFixed(2)} km/h</Text></Text>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+        )
+      )}
+    </Box>
+  );
 };
 
 export default WeeklyStats;

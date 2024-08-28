@@ -42,7 +42,7 @@ const NavBar = () => {
 						_activeLink={{ bg: "gray.100", color: "black" }}
 				>
 					<IoPodiumOutline size="30px"/>
-					<Text fontSize="small">Топ 100</Text>
+					<Text fontSize="small">Топ 50</Text>
 				</Button>
 				<Button
 						as={NavLink}
