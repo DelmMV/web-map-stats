@@ -107,11 +107,11 @@ const TopUsers = ({userId}) => {
           <Text fontSize="xs" width="30px" textAlign="right">Юг</Text>
         </Flex>
         <Flex justify="space-between" mt={1}>
-          <Text fontSize="xs">({distanceComparison.percentageInNorth}%) {distanceComparison.northDistance} км</Text>
-          <Text fontSize="xs">({distanceComparison.percentageInSouth}%) {distanceComparison.southDistance} км</Text>
-        </Flex> 
+          <Text fontSize="xs">({distanceComparison.percentageInNorth}%)</Text>
+          <Text fontSize="xs">({distanceComparison.percentageInSouth}%)</Text>
+        </Flex>
       </Box>
-    );  
+    );
   };
 	
 	const renderSessionsList = (sessions) => (
@@ -195,8 +195,8 @@ const TopUsers = ({userId}) => {
 						</Box>
 				) : error ? (
     <Text color="red.500">
-        {error === "No data found for the specified period" 
-          ? "Нет данных за указанный период" 
+        {error === "No data found for the specified period"
+          ? "Нет данных за указанный период"
           : `Ошибка загрузки данных: ${error}`}
       </Text>
 				) : (

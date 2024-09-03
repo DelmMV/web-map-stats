@@ -1,11 +1,41 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import {MapContainer, TileLayer, Polyline, Popup, Marker} from 'react-leaflet';
+import {MapContainer, TileLayer, Polyline, Popup, Marker, useMap} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Box, Button, FormControl, FormLabel, Input, Text, VStack, HStack, Flex, IconButton } from '@chakra-ui/react';
+import {
+	Box,
+	Button,
+	FormControl,
+	FormLabel,
+	Input,
+	Text,
+	VStack,
+	HStack,
+	Flex,
+	IconButton,
+	Switch,
+	Divider
+} from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import haversine from 'haversine-distance';
 import {CiRoute} from "react-icons/ci";
+import 'leaflet.heat';
+
+function HeatmapLayer({ points }) {
+	const map = useMap();
+	
+	useEffect(() => {
+		if (!map || !points.length) return;
+		
+		const heat = L.heatLayer(points, { radius: 5, blur: 2, max: 1, gradients: { 0.3: 'blue', 0.6: 'yellow', 0.8: 'red' }}).addTo(map);
+		
+		return () => {
+			map.removeLayer(heat);
+		};
+	}, [map, points]);
+	
+	return null;
+};
 
 function UserMap({ userId }) {
 	const today = new Date().toISOString().split('T')[0];
@@ -14,7 +44,51 @@ function UserMap({ userId }) {
 	const [dateRange, setDateRange] = useState({ start: today, end: today });
 	const [status, setStatus] = useState({ loading: false, error: null });
 	const [visibleSessions, setVisibleSessions] = useState({});
+	const [isBoxVisible, setIsBoxVisible] = useState(true);
+
+	const [showHeatmap, setShowHeatmap] = useState(false);
+	const [heatmapData, setHeatmapData] = useState([]);
+	const [heatmapStatus, setHeatmapStatus] = useState({ loading: false, error: null });
+	
 	const carouselRef = useRef(null);
+	const mapRef = useRef(null);
+
+useEffect(() => {
+  if (mapRef.current) {
+    mapRef.current.invalidateSize();
+  }
+}, [isBoxVisible, routes.data]);
+	
+	const fetchHeatmapData = useCallback(async () => {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - 30);
+
+    const url = new URL(`https://monopiter.ru/api/heatmap`);
+    url.searchParams.append('startDate', startDate.toISOString());
+    url.searchParams.append('endDate', endDate.toISOString());
+
+    setHeatmapStatus({ loading: true, error: null });
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ошибка при загрузке данных тепловой карты');
+      }
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setHeatmapData(data.map(point => [point.latitude, point.longitude, point.intensity || 1]));
+        setHeatmapStatus({ loading: false, error: null });
+      } else {
+        setHeatmapStatus({ loading: false, error: 'Нет данных для тепловой карты за последние 15 дней' });
+      }
+    } catch (error) {
+      console.error('Error fetching heatmap data:', error);
+      setHeatmapStatus({ loading: false, error: error.message });
+    }
+  }, []);
+	
 	
 	const fetchRoute = useCallback(async () => {
 		const { start, end } = dateRange;
@@ -79,6 +153,12 @@ function UserMap({ userId }) {
 			setStatus({ loading: false, error: error.message });
 		}
 	}, [userId, dateRange]);
+	
+	useEffect(() => {
+    if (showHeatmap) {
+      fetchHeatmapData();
+    }
+  }, [showHeatmap, fetchHeatmapData]);
 	
 	useEffect(() => {
 		if (dateRange.start && dateRange.end) {
@@ -184,16 +264,24 @@ function UserMap({ userId }) {
 							/>
 						</FormControl>
 					</HStack>
-					<Button type="submit" colorScheme="blue" isLoading={status.loading} width="100%">
-						{status.loading ? 'Загрузка...' : 'Поиск'}
-					</Button>
 				</VStack>
-				
-				{status.error && <Text color="red.500" paddingLeft={1}>{status.error}</Text>}
-				
-				{!status.error && Object.keys(routes.data).length === 0 && !status.loading && (
-						<Text>Выберите даты и нажмите "Поиск" для отображения маршрута</Text>
-				)}
+      <HStack p={2}>
+				<Button type="submit" colorScheme="blue" isLoading={status.loading} width="100%">
+					{status.loading ? 'Загрузка...' : 'Поиск'}
+				</Button>
+				<Divider orientation='vertical' />
+				<VStack spacing={0} align="flex-start">
+          <Switch
+          id="show-heatmap"
+          isChecked={showHeatmap}
+          onChange={(e) => setShowHeatmap(e.target.checked)}
+          disabled={heatmapStatus.loading}
+          />
+          <Text fontSize="smaller" color="gray.500" >
+          Heatmap
+          </Text>
+				</VStack>
+    </HStack>
 				
 				{Object.keys(routes.data).length > 0 && (
 						<Flex align="center" paddingLeft={1} paddingRight={1}>
@@ -246,11 +334,13 @@ function UserMap({ userId }) {
 							zoom={10}
 							attributionControl={false}
 							style={{ height: '100%', width: '100%' }}
+							whenCreated={mapInstance => { mapRef.current = mapInstance; }}
 					>
 						<TileLayer
 								url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 								attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
 						/>
+						
 						{Object.keys(routes.data).map((sessionId, idx) => {
 							if (!visibleSessions[sessionId]) return null;
 							const sessionRoute = routes.data[sessionId];
@@ -271,17 +361,31 @@ function UserMap({ userId }) {
 									</React.Fragment>
 							);
 						})}
+						
+						{showHeatmap && !heatmapStatus.loading && !heatmapStatus.error && heatmapData.length > 0 && (
+							<HeatmapLayer points={heatmapData} />
+						)}
 					</MapContainer>
 				</Box>
 				
-				{!status.loading && !status.error && (
-						<Box p={1} bgColor="white" borderWidth="2px" borderColor="gray">
+				{!status.loading && !status.error ? (
+						<Box p={1} bgColor="white" borderWidth="2px" borderColor="gray" display={isBoxVisible ? "block" : "none"}>
 							<Text fontWeight="bold" fontSize="smaller">Длина активных маршрутов:</Text>
 							{activeSessions.map((sessionId) => (
 									<Text key={sessionId} fontSize="smaller">{`Маршрут: ${(routes.distances[sessionId] / 1000).toFixed(2)} км`}</Text>
 							))}
 							<Text fontWeight="bold" mt={1} fontSize="smaller">
 								Общий пробег активных маршутов: {(totalActiveDistance / 1000).toFixed(2)} км
+							</Text>
+						</Box>
+				) : (
+						<Box p={4} bgColor="white" borderWidth="2px" borderColor="gray" display={isBoxVisible ? "block" : "none"}>
+							<Text fontWeight="bold" fontSize="medium">
+								{status.error && <Text color="red.500" paddingLeft={1}>{status.error}</Text>}
+								
+								{!status.error && Object.keys(routes.data).length === 0 && !status.loading && (
+										<Text>Выберите даты и нажмите "Поиск" для отображения маршрута</Text>
+								)}
 							</Text>
 						</Box>
 				)}

@@ -70,12 +70,12 @@ const WeeklyStats = ({ userId }) => {
                 <Text>Недельный пробег: <Text as="span">{stats.totalDistance.toFixed(2)} km</Text></Text>
                 <Text>Дневной пробег: <Text as="span">{todayDistance} km</Text></Text>
               </CardBody>
-            </Card>  
+            </Card>
             <Card mb={3}>
               <CardBody p={2}>
                 {distanceCategory.category === 'north' ? (
                   <Text>
-                    <Text as="span" color="blue.400" fontWeight="bold">Братсво Cеверного Бублика:</Text>
+                    <Text as="span" color="blue.400" fontWeight="bold">Братство Cеверного Бублика:</Text>
                   </Text>
                 ) : (
                   <Text>
