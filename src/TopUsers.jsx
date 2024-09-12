@@ -15,7 +15,7 @@ import {
 	Flex
 } from '@chakra-ui/react';
 
-const TopUsers = ({userId}) => {
+const TopUsers = ({userId, admins}) => {
 	const [topUsers, setTopUsers] = useState([]);
 	const [topSessions, setTopSessions] = useState([]);
 	const [topDailyDistances, setTopDailyDistances] = useState([]);
@@ -24,8 +24,8 @@ const TopUsers = ({userId}) => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
  const [distanceComparison, setDistanceComparison] = useState(null);
-
-	const adminIds = [200885469, 900133683, 527549474, 294170514, 5550302390, 495310665];
+ console.log(admins); // Это выведет массив adminIds
+	const adminIds = admins
 	
 	useEffect(() => {
 	const fetchData = async () => {

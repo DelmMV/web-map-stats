@@ -9,6 +9,40 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.leaflet-popup-content-wrapper {
+  padding: 7px;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  padding: 0;
+}
+
+.custom-popup-addby {
+  font-size: 10px;
+  color: gray;
+  margin: 0;
+  padding: 0;
+}
+
+.custom-popup-comment {
+  font-size: 14px;
+  color: gray;
+  margin: 0;
+  padding: 0;
+}
+
+.custom-popup-header {
+  font-size: 19px;
+  font-weight: bolder;
+  margin: 0;
+  padding: 0;
+}
+
+.custom-popup .chakra-button {
+  font-size: 12px;
+}
+
 /*a {*/
 /*  font-weight: 500;*/
 /*  color: #646cff;*/

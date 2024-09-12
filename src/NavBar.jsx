@@ -20,10 +20,22 @@ const NavBar = () => {
 					width="100%"
 					zIndex={1000}
 			>
+			<Button
+					as={NavLink}
+					to="/"
+					variant="ghost"
+					display="flex"
+					flexDirection="column"
+					colorScheme="white"
+					_activeLink={{ bg: "gray.100", color: "black" }}
+			>
+				<IoMapOutline size="30px"/>
+				<Text fontSize="small">Карта</Text>
+			</Button>
 				<Button
 						as={NavLink}
-						to="/"
-						variant="ghost"
+						to="/weekly-stats"
+						variant="ghost" 
 						colorScheme="white"
 						display="flex"
 						flexDirection="column"
@@ -43,18 +55,6 @@ const NavBar = () => {
 				>
 					<IoPodiumOutline size="30px"/>
 					<Text fontSize="small">Топ 50</Text>
-				</Button>
-				<Button
-						as={NavLink}
-						to="/routes"
-						variant="ghost"
-						display="flex"
-						flexDirection="column"
-						colorScheme="white"
-						_activeLink={{ bg: "gray.100", color: "black" }}
-				>
-					<IoMapOutline size="30px"/>
-					<Text fontSize="small">Маршруты</Text>
 				</Button>
 			</Box>
 	);
