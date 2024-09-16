@@ -49,7 +49,7 @@ const WeeklyStats = ({ userId }) => {
   }, [userId]);
   
   return (
-    <Box p={5} maxW="800px" mx="auto" marginBottom="60px">
+    <Box p={5} maxW="800px" mx="auto" marginBottom="40px">
       <Box align="center">
         <Badge bgColor="gray.100" borderRadius={10} fontSize={23}>
           Общая статистика

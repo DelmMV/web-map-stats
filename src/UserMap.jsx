@@ -1,38 +1,56 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef, useReducer } from 'react';
-import { MapContainer, TileLayer, Polyline, Popup, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Popup, Marker, useMap, useMapEvents, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
   Box,
-  Button,
-  FormControl,
-  FormLabel,
-  Input,
-  Text,
-  VStack,
-  HStack,
-  Flex,
   IconButton,
-  Checkbox,
-  Select,
   useDisclosure,
   useToast,
-  Divider,
+  Drawer,
+  DrawerBody,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerCloseButton,
 } from '@chakra-ui/react';
 import imageCompression from 'browser-image-compression';
-import { ChevronLeftIcon, ChevronRightIcon, AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+import { AddIcon, HamburgerIcon } from '@chakra-ui/icons';
 import haversine from 'haversine-distance';
-import { CiRoute } from "react-icons/ci";
 import { HiLocationMarker } from "react-icons/hi";
 import 'leaflet.heat';
-import { LazyLoadImage } from 'react-lazy-load-image-component';
 import { useTelegramUser } from './hooks/useTelegramUser';
-import { format } from 'date-fns';
 import MarkerClusterGroup from './components/MarkerClusterGroup';
 import HeatmapLayer from './components/HeatmapLayer';
 import { customIconSvgRange, customIconSvgCharger, customIconSvgCharger24, customInterestingIcon, customDangerIcon, customChatIcon, customAutoChargerIcon } from './components/CustomIcon';
 import AddStationModal from './components/AddStationModal';
 import EditStationModal from './components/EditStationModal';
 import MarkerFilterControl from './components/MarkerFilterControl';
+import StationModal from './components/StationModal';
+import DrawerMenu from './components/DrawerMenu';
+
+
+const CustomZoomControl = () => {
+  const map = useMap();
+
+  return (
+    <div className="custom-zoom-control">
+      <button
+        onClick={() => map.zoomIn()}
+        title="Zoom in"
+        aria-label="Zoom in"
+      >
+        +
+      </button>
+      <button
+        onClick={() => map.zoomOut()}
+        title="Zoom out"
+        aria-label="Zoom out"
+      >
+        -
+      </button>
+    </div>
+  );
+};
 
 function routesReducer(state, action) {
   switch (action.type) {
@@ -46,13 +64,15 @@ function routesReducer(state, action) {
           return acc;
         }, {})
       };
+    case 'CLEAR_ROUTES':
+      return { data: {}, distances: {}, visibleSessions: {} };
     case 'TOGGLE_SESSION':
-      return { 
-        ...state, 
-        visibleSessions: { 
-          ...state.visibleSessions, 
-          [action.payload]: !state.visibleSessions[action.payload] 
-        } 
+      return {
+        ...state,
+        visibleSessions: {
+          ...state.visibleSessions,
+          [action.payload]: !state.visibleSessions[action.payload]
+        }
       };
     default:
       return state;
@@ -84,7 +104,6 @@ function UserMap({ userId, admins }) {
   const today = new Date().toISOString().split('T')[0];
   const [routesState, dispatch] = useReducer(routesReducer, { data: {}, distances: {}, visibleSessions: {} });
   const [dateRange, setDateRange] = useState({ start: today, end: today });
-  const [showDateRange, setShowDateRange] = useState(false);
   const [status, setStatus] = useState({ loading: false, error: null });
   const [chargingStations, setChargingStations] = useState([]);
   const [showChargingStations, setShowChargingStations] = useState(false);
@@ -99,10 +118,13 @@ function UserMap({ userId, admins }) {
   const [newStation, setNewStation] = useState(null);
   const [isAddingStation, setIsAddingStation] = useState(false);
   const [editingStation, setEditingStation] = useState(null);
+  const [selectedStation, setSelectedStation] = useState(null);
+  const { isOpen: isStationModalOpen, onOpen: onStationModalOpen, onClose: onStationModalClose } = useDisclosure();
   const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
+  const { isOpen: isDrawerOpen, onOpen: onDrawerOpen, onClose: onDrawerClose } = useDisclosure();
   const toast = useToast();
-
+  const isAdmin = admins.includes(userId)
   const carouselRef = useRef(null);
   const mapRef = useRef(null);
 
@@ -119,8 +141,14 @@ function UserMap({ userId, admins }) {
   };
 
   const filteredChargingStations = useMemo(() => {
-    return chargingStations.filter((station) => markerFilters[station.markerType]);
-  }, [chargingStations, markerFilters]);
+    return chargingStations.filter((station) => 
+      markerFilters[station.markerType] && (
+        isAdmin || 
+        typeof station.dislikes === 'undefined' || 
+        station.dislikes < 5
+      )
+    );
+  }, [chargingStations, markerFilters, isAdmin]);
 
   const fetchChargingStations = useCallback(async () => {
     try {
@@ -186,15 +214,16 @@ function UserMap({ userId, admins }) {
       const startDate = new Date(start);
       const endDate = new Date(end);
       endDate.setHours(23, 59, 59, 999);
-
+  
       const formattedStartDate = startDate.toISOString();
       const formattedEndDate = endDate.toISOString();
       url.searchParams.append('startDate', formattedStartDate);
       url.searchParams.append('endDate', formattedEndDate);
     }
-
+  
     setStatus({ loading: true, error: null });
-
+    dispatch({ type: 'CLEAR_ROUTES' }); // Очищаем маршруты перед новым запросом
+  
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -213,7 +242,7 @@ function UserMap({ userId, admins }) {
           acc[sessionId].push(point);
           return acc;
         }, {});
-
+  
         const distances = Object.keys(groupedRoutes).reduce((acc, sessionId) => {
           acc[sessionId] = groupedRoutes[sessionId].reduce((totalDistance, point, index, array) => {
             if (index === 0) return totalDistance;
@@ -226,17 +255,27 @@ function UserMap({ userId, admins }) {
           }, 0);
           return acc;
         }, {});
-
+  
         dispatch({ type: 'SET_ROUTES', payload: { data: groupedRoutes, distances } });
-        setStatus({ loading: false, error: null });
       }
+      setStatus({ loading: false, error: null });
     } catch (error) {
+      toast({
+        position: "top-right",
+        title: error.message,
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
       console.error('Error fetching route:', error);
       setStatus({ loading: false, error: error.message });
+      dispatch({ type: 'CLEAR_ROUTES' }); // Очищаем маршруты в случае ошибки
     }
   }, [userId, dateRange]);
 
   useEffect(() => {
+    
+    
     if (showHeatmap) {
       fetchHeatmapData();
     }
@@ -303,10 +342,12 @@ function UserMap({ userId, admins }) {
 
   const handleEditStation = (station) => {
     setEditingStation(station);
+    onStationModalClose();
     onEditOpen();
   };
 
   const handleDeleteStation = async (stationId) => {
+    onStationModalClose();
     try {
       const response = await fetch(`https://monopiter.ru/api/charging-stations/${stationId}`, {
         method: 'DELETE',
@@ -318,6 +359,7 @@ function UserMap({ userId, admins }) {
 
       await fetchChargingStations();
       toast({
+        position: "top-right",
         title: "Станция удалена",
         status: "success",
         duration: 3000,
@@ -326,6 +368,7 @@ function UserMap({ userId, admins }) {
     } catch (error) {
       console.error('Error deleting charging station:', error);
       toast({
+        position: "top-right",
         title: "Ошибка при удалении станции",
         status: "error",
         duration: 3000,
@@ -384,6 +427,7 @@ function UserMap({ userId, admins }) {
       setNewStation(null);
       onAddClose();
       toast({
+        position: "top-right",
         title: "Станция добавлена",
         status: "success",
         duration: 3000,
@@ -392,6 +436,7 @@ function UserMap({ userId, admins }) {
     } catch (error) {
       console.error('Error adding charging station:', error);
       toast({
+        position: "top-right",
         title: `Ошибка при добавлении станции ${error}`,
         status: "error",
         duration: 3000,
@@ -429,6 +474,7 @@ function UserMap({ userId, admins }) {
       setEditingStation(null);
       onEditClose();
       toast({
+        position: "top-right",
         title: "Станция обновлена",
         status: "success",
         duration: 3000,
@@ -437,6 +483,7 @@ function UserMap({ userId, admins }) {
     } catch (error) {
       console.error('Error updating charging station:', error);
       toast({
+        position: "top-right",
         title: "Ошибка при обновлении станции",
         status: "error",
         duration: 3000,
@@ -481,7 +528,6 @@ function UserMap({ userId, admins }) {
   const chatIcon = useMemo(() => customChatIcon(), []);
 
   const getMarkerIcon = (station) => {
-  
     switch (station.markerType) {
       case 'charging':
         return station.is24Hours ? chargingStationIcon24 : chargingStationIcon;
@@ -498,181 +544,54 @@ function UserMap({ userId, admins }) {
     }
   };
 
-  const getMarkerTypeTitle = (markerType) => {
-    switch (markerType) {
-      case 'charging':
-        return 'Место зарядки';
-      case 'chargingAuto':
-        return 'Автомобильная зарядка';
-      case 'interesting':
-        return 'Интересное место';
-      case 'danger':
-        return 'Опасное место';
-      case 'chat':
-        return 'Разговорчики';
-      default:
-        return 'Место зарядки';
-    }
-  };
-
   return (
-    <Box display="flex" flexDirection="column" height="100vh" paddingBottom="64px">
-      <VStack as="form" onSubmit={handleSearch} spacing={0} align="center" width={{ base: '100%', md: '400px' }}>
-        <Button
-          width={{ base: '95%', md: 'auto' }}
-          height={{ base: 'auto', md: '100%' }}
-          fontSize="sm"
-          colorScheme={showDateRange ? 'blue' : 'gray'}
-          variant="outline"
-          size="sm"
-          m={2}
-          onClick={() => setShowDateRange(!showDateRange)}
+    <Box display="flex" flexDirection="column" height="100vh" paddingBottom="50px">
+    <IconButton onClick={onDrawerOpen} position="absolute" top="10px" left="11px" zIndex={1000} icon={<HamburgerIcon />} borderWidth={2} borderRadius={4} borderColor="gray" />
+
+  
+      <Drawer isOpen={isDrawerOpen} placement="top" onClose={onDrawerClose} > 
+        <DrawerOverlay>
+          <DrawerContent 
+          borderBottomWidth={2} 
+          borderBottomRadius={6} 
+          borderBottomColor="black"
+          bg="rgba(255, 255, 255, 0.8)"
+          backdropFilter="blur(10px)"
+
         >
-          Поиск трека по дате
-        </Button>
-        {showDateRange && (
-          <HStack spacing={0} width="100%">
-            <FormControl isRequired ml={2}>
-              <FormLabel fontSize="sm">Начальная дата</FormLabel>
-              <Input
-                type="date"
-                name="start"
-                value={dateRange.start}
-                onChange={handleDateChange}
-              />
-            </FormControl>
-            <FormControl isRequired>
-              <FormLabel fontSize="sm">Конечная дата</FormLabel>
-              <Input
-                type="date"
-                name="end"
-                value={dateRange.end}
-                onChange={handleDateChange}
-              />
-            </FormControl>
-          </HStack>
-        )}
-      </VStack>
+            <DrawerCloseButton />
+            <DrawerHeader>Меню</DrawerHeader>
+            <DrawerBody>  
+            <DrawerMenu
+              dateRange={dateRange}
+              handleDateChange={handleDateChange}
+              handleSearch={handleSearch}
+              showHeatmap={showHeatmap}
+              setShowHeatmap={setShowHeatmap}
+              heatmapStatus={heatmapStatus}
+              handleHeatmapPeriodChange={handleHeatmapPeriodChange}
+              heatmapPeriod={heatmapPeriod}
+              heatmapMonth={heatmapMonth}
+              setHeatmapMonth={setHeatmapMonth}
+              heatmapYear={heatmapYear}
+              setHeatmapYear={setHeatmapYear}
+              totalActiveDistance={totalActiveDistance}
+              routesState={routesState}
+              toggleSession={toggleSession}
+              handleScroll={handleScroll}
+              carouselRef={carouselRef}
+            />
+            </DrawerBody>
+          </DrawerContent>
+        </DrawerOverlay>
+      </Drawer>
 
-      <Box>
-        <Box spacing={0} align="center">
-          <Button
-            onClick={(e) => setShowHeatmap(!showHeatmap)}
-            isLoading={heatmapStatus.loading}
-            width={{ base: '95%', md: 'auto' }}
-            height={{ base: 'auto', md: '100%' }}
-            colorScheme={showHeatmap ? 'blue' : 'gray'}
-            variant="outline"
-            size="sm"
-            m={2}
-          >Тепловая карта</Button>
-        </Box>
-        {showHeatmap && (
-          <HStack>
-            <Checkbox
-              pl={2}
-              isChecked={heatmapPeriod === 'this_year'}
-              onChange={(e) => handleHeatmapPeriodChange({ target: { value: e.target.checked ? 'this_year' : 'this_month' } })}
-            >
-              <Text fontSize="smaller">
-                Годовая
-              </Text>
-            </Checkbox>
-            {heatmapPeriod !== 'this_year' && (
-              <Select
-                value={heatmapMonth}
-                onChange={(e) => setHeatmapMonth(Number(e.target.value))}
-                size="sm"
-              >
-                {[...Array(12)].map((_, i) => (
-                  <option key={i} value={i + 1}>
-                    {new Date(0, i).toLocaleString('default', { month: 'long' })}
-                  </option>
-                ))}
-              </Select>
-            )}
-            <Select
-              value={heatmapYear}
-              onChange={(e) => setHeatmapYear(Number(e.target.value))}
-              size="sm"
-              mr={2}
-            >
-              {[...Array(2)].map((_, i) => {
-                const year = new Date().getFullYear() - i;
-                return <option key={year} value={year}>{year}</option>;
-              })}
-            </Select>
-          </HStack>
-        )}
-        <HStack pt={1} pb={1}>
-
-          {showChargingStations && (
-            <Button
-              onClick={handleAddStationClick}
-              isDisabled={isAddingStation}
-              leftIcon={<AddIcon />}
-              ml={2}
-              size="smaller"
-              padding={0.5}
-            >
-              <Text fontSize="smaller">Добавить место</Text>
-            </Button>
-          )}
-        </HStack>
-      </Box>
-
-      {Object.keys(routesState.data).length > 0 && (
-        <Flex align="center" paddingLeft={2} paddingRight={2}>
-          <IconButton
-            icon={<ChevronLeftIcon />}
-            onClick={() => handleScroll('left')}
-            aria-label="Scroll left"
-          />
-          <Box
-            ref={carouselRef}
-            overflowX="auto"
-            whiteSpace="nowrap"
-            css={{
-              '&::-webkit-scrollbar': {
-                display: 'none',
-              },
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            }}
-            flex={1}
-          >
-            <HStack spacing={2} p={2}>
-              {Object.keys(routesState.data).map((sessionId, idx) => (
-                <Button
-                  key={sessionId}
-                  size="sm"
-                  colorScheme={routesState.visibleSessions[sessionId] ? "green" : "gray"}
-                  onClick={() => toggleSession(sessionId)}
-                  flexShrink={0}
-                  paddingLeft={1}
-                  paddingRight={1}
-                >
-                  <Text display="flex" flexDirection="row">
-                    <CiRoute size="17px" />
-                    {(routesState.distances[sessionId] / 1000).toFixed(2)} км
-                  </Text>
-                </Button>
-              ))}
-            </HStack>
-          </Box>
-          <IconButton
-            icon={<ChevronRightIcon />}
-            onClick={() => handleScroll('right')}
-            aria-label="Scroll right"
-          />
-        </Flex>
-      )}
-
-      <Box flex="1" position="relative" overflow="hidden">
+      <Box flex="1" position="absolute" top="0" left="0" right="0" bottom="0" overflow="hidden">
         <MapContainer
           center={[59.938676, 30.314487]}
           zoom={10}
           attributionControl={false}
+          zoomControl={false} 
           style={{ height: '100%', width: '100%' }}
           whenCreated={mapInstance => { mapRef.current = mapInstance; }}
         >
@@ -680,7 +599,7 @@ function UserMap({ userId, admins }) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
           />
-
+  
           {showChargingStations && filteredChargingStations && filteredChargingStations.length > 0 && (
             <MarkerClusterGroup>
               {filteredChargingStations.map((station) => (
@@ -688,118 +607,77 @@ function UserMap({ userId, admins }) {
                   key={station._id}
                   position={[station.latitude, station.longitude]}
                   icon={getMarkerIcon(station)}
-                >
-                  <Popup>
-                    <Box width="200px" p={0} m={0}>
-                      <VStack align="stretch" spacing={2}>
-                        <div className='custom-popup-header'>{getMarkerTypeTitle(station.markerType)}</div>
-
-                        {station.photo && (
-                          <LazyLoadImage
-                            src={station.photo}
-                            effect="blur"
-                            threshold={200}
-                            loading="lazy"
-                            onError={(event) => console.log('Image load failed', event)}
-                            width="100%"
-                            height="150px"
-                            style={{
-                              objectFit: 'cover',
-                              width: '100%',
-                              height: '100%',
-                              borderRadius: '0.375rem'
-                            }}
-                          />
-                        )}
-
-                        {station.comment && (
-                          <div className='custom-popup-comment'>
-                            {station.comment}
-                          </div>
-                        )}
-
-                        <VStack align="start" spacing={1}>
-                          <div className='custom-popup-addby'>
-                            Добавил: {station.addedBy.username ? station.addedBy.username : station.addedBy.name}
-                          </div>
-                          <div className='custom-popup-addby'>
-                            {format(new Date(station.addedAt), 'dd.MM.yyyy HH:mm')}
-                          </div>
-                        </VStack>
-
-                        <Divider />
-
-                        <HStack justifyContent="space-between">
-                          <IconButton
-                            icon={<EditIcon />}
-                            aria-label="Edit station"
-                            size="xs"
-                            colorScheme="blue"
-                            onClick={() => handleEditStation(station)}
-                          />
-                            {admins.includes(userId) && (
-                            <IconButton
-                              icon={<DeleteIcon />}
-                              aria-label="Delete station"
-                              size="xs"
-                              colorScheme="red"
-                              onClick={() => handleDeleteStation(station._id)}
-                            />
-                          )}
-                        </HStack>
-                      </VStack>
-                    </Box>
-                  </Popup>
-                </Marker>
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedStation(station);
+                      onStationModalOpen();
+                    },
+                  }}
+                  />
               ))}
             </MarkerClusterGroup>
           )}
-
+  
           {Object.keys(routesState.data).map((sessionId, idx) => {
             if (!routesState.visibleSessions[sessionId]) return null;
             const sessionRoute = routesState.data[sessionId];
             const sessionPositions = sessionRoute.map(point => [point.latitude, point.longitude]);
             const totalDistance = routesState.distances[sessionId];
-
+  
             return (
               <React.Fragment key={sessionId}>
                 <Polyline positions={sessionPositions} color={sessionColors[idx]} weight={3} />
-
+  
                 <Marker position={sessionPositions[0]} icon={startIcon}>
                   <Popup>{`Начало трека (Маршрут ${sessionId}): ${new Date(sessionRoute[0].timestamp * 1000).toLocaleString()}`}</Popup>
                 </Marker>
-
+  
                 <Marker position={sessionPositions[sessionPositions.length - 1]} icon={endIcon}>
                   <Popup>{`Конец трека (Маршрут ${sessionId}): ${new Date(sessionRoute[sessionRoute.length - 1].timestamp * 1000).toLocaleString()} \n Пробег: ${(totalDistance / 1000).toFixed(2)} км`}</Popup>
                 </Marker>
               </React.Fragment>
             );
           })}
-
+  
           {showHeatmap && !heatmapStatus.loading && !heatmapStatus.error && heatmapData.length > 0 && (
             <HeatmapLayer points={heatmapData} />
           )}
           <MapClickHandler isAddingStation={isAddingStation} onMapClick={handleMapClick} />
-          <MarkerFilterControl onFilterChange={handleFilterChange} />
-          <Box position="absolute" top="81px"left="11px" zIndex={1000}>
-            <Button 
-            onClick={() => setShowChargingStations(!showChargingStations)} 
-            variant="solid"
-            colorScheme={showChargingStations ? 'blue' : 'gray'}
-            size="sm" 
-            borderRadius= "0"
-            borderWidth={1}
-            borderColor="gray"
-            width="30px"
-            padding="0"
-            
-          >
-          <HiLocationMarker/>
-          </Button>
+          {showChargingStations && <MarkerFilterControl onFilterChange={handleFilterChange} />}
+          <Box position="absolute" top="81px" left="11px" zIndex={1000}>
+            <IconButton
+              onClick={() => setShowChargingStations(!showChargingStations)} 
+              variant="solid"
+              icon={<HiLocationMarker />}
+              colorScheme={showChargingStations ? 'blue' : 'gray'}
+              size="sm" 
+              borderRadius={3}
+              borderColor="gray"
+              borderWidth={2}
+              width="30px"
+              padding="0"
+              />
           </Box>
+          {showChargingStations && (
+            <Box position="absolute" top="120px" left="11px" zIndex={1000}>
+            <IconButton
+                onClick={handleAddStationClick}
+                isDisabled={isAddingStation}
+                icon={<AddIcon />}
+                colorScheme="gray"
+                size="sm"
+                borderRadius={3}
+                borderColor="gray"
+                borderWidth={2}
+                />
+            </Box>
+          )}
+            <div >
+              <CustomZoomControl/>
+            </div>
         </MapContainer>
-      </Box>  
-
+      </Box>
+  
       {isAddingStation && (
         <Box
           fontSize={12}
@@ -817,41 +695,29 @@ function UserMap({ userId, admins }) {
         </Box>
       )}
 
-      {!status.loading && !status.error ? (
-        <Box p={1} bgColor="white" borderWidth="2px" borderColor="gray">
-          <Text fontWeight="bold" fontSize="smaller">Длина активных маршрутов:</Text>
-          {activeSessions.map((sessionId) => (
-            <Text key={sessionId} fontSize="smaller">{`Маршрут: ${(routesState.distances[sessionId] / 1000).toFixed(2)} км`}</Text>
-          ))}
-          <Text fontWeight="bold" mt={1} fontSize="smaller">
-            Общий пробег активных маршрутов: {(totalActiveDistance / 1000).toFixed(2)} км
-          </Text>
-        </Box>
-      ) : (
-        <Box p={4} bgColor="white" borderWidth="2px" borderColor="gray">
-          <Text fontWeight="bold" fontSize="medium">
-            {status.error && <Text color="red.500" paddingLeft={1}>{status.error}</Text>}
-            {!status.error && Object.keys(routesState.data).length === 0 && !status.loading && (
-              <Text>Выберите даты и нажмите "Поиск" для отображения маршрута</Text>
-            )}
-          </Text>
-        </Box>
-      )}
-
       <AddStationModal
         isOpen={isAddOpen}
         onClose={onAddClose}
         onSave={handleSaveStation}
       />
-
+  
       <EditStationModal
         isOpen={isEditOpen}
         onClose={onEditClose}
         onUpdate={handleUpdateStation}
         station={editingStation}
       />
+      
+      <StationModal
+        isOpen={isStationModalOpen}
+        onClose={onStationModalClose}
+        station={selectedStation}
+        onEdit={handleEditStation}
+        onDelete={handleDeleteStation}
+        isAdmin={isAdmin}
+        userId={userId}
+      />
     </Box>
   );
 }
-
 export default React.memo(UserMap);

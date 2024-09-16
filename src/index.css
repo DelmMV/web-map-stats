@@ -43,6 +43,66 @@
   font-size: 12px;
 }
 
+.custom-zoom-control {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1000;
+  border: 2px solid gray;
+  border-radius: 4px;
+}
+
+.custom-zoom-control button {   
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #666;
+  text-align: center;
+  background: white;
+  border: none;
+  cursor: pointer;
+  display: block;
+}
+
+.custom-zoom-control button:first-child {
+  border-bottom: 1px solid #ccc;
+}
+
+.custom-zoom-control button:hover {
+  background: #f4f4f4;
+}
+.leaflet-sidebar {
+  bottom: 50px;
+  height: auto !important;
+}
+
+.leaflet-sidebar-content {
+  background-color: white;
+}
+
+.leaflet-sidebar-tabs {
+  background-color: #3182ce;
+}
+
+.leaflet-sidebar-tabs > ul > li > a {
+  color: white;
+}
+
+.leaflet-sidebar-tabs > ul > li.active {
+  background-color: white;
+}
+
+.leaflet-sidebar-tabs > ul > li.active > a {
+  color: #3182ce;
+}
+
+.leaflet-sidebar-header {
+  background-color: #3182ce;
+  color: white;
+}
 /*a {*/
 /*  font-weight: 500;*/
 /*  color: #646cff;*/

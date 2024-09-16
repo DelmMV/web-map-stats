@@ -165,7 +165,7 @@ const TopUsers = ({userId, admins}) => {
 	);
 	
 	return (
-			<Box p={5} maxW="800px" mx="auto" marginBottom="60px">
+			<Box p={5} maxW="800px" mx="auto" marginBottom="30px">
 				<Box align="center">
 					<Badge mb={5} fontSize={27} bgColor="gray.100" borderRadius={10}>Топ 50</Badge>
 				</Box>

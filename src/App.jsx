@@ -7,12 +7,13 @@ import WeeklyStats from "./WeeklyStats.jsx";
 import {useEffect, useState} from "react";
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet-sidebar-v2/css/leaflet-sidebar.css';
 import './index.css';
 
 function App() {
 const adminIds = [200885469, 900133683, 527549474, 294170514, 5550302390, 495310665];
 
-//const userId = 351139657; // Example userId
+//const userId = 200885469; // Example userId
 const [userId, setUserId] = useState(null);
 
   useEffect(() => {

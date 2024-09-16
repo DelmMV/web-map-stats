@@ -37,21 +37,21 @@ function MarkerFilterControl({ onFilterChange }) {
   return (
     <Box
       position="absolute"
-      top="120px" 
+      top="160px"
       left="11px"
       zIndex={1000}
     >
-    <Menu closeOnSelect={false}>
+    <Menu closeOnSelect={false} placement="right-start">
     <MenuButton 
       as={IconButton}
       aria-label="Фильтр маркеров"
       icon={<FaFilter />}
       variant="solid"
       size="sm"
-      bg="white"
-      borderRadius="0"
-      borderColor="black"
-      borderWidth={1}
+      colorScheme="gray"
+      borderRadius={3}
+      borderColor="gray"
+      borderWidth={2}
     />        
       <MenuList minWidth="200px">
           <VStack align="start" spacing={1} p={2}>
