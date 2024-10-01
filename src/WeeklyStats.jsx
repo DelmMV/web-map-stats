@@ -14,8 +14,8 @@ const WeeklyStats = ({ userId }) => {
       setError(null);
       try {
         const [weeklyStatsResponse, distanceCategoryResponse] = await Promise.all([
-          fetch(`https://monopiter.ru/api/user-stats/week/${userId}`),
-          fetch(`https://monopiter.ru/api/user-category-by-distance/${userId}`)
+          fetch(`https://api.monopiter.ru/api/user-stats/week/${userId}`),
+          fetch(`https://api.monopiter.ru/api/user-category-by-distance/${userId}`)
         ]);
         
         if (!weeklyStatsResponse.ok || !distanceCategoryResponse.ok) {

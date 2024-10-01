@@ -59,7 +59,7 @@ const EditStationModal = ({ isOpen, onClose, onUpdate, station }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
-      <ModalContent>
+      <ModalContent margin={2}>
         <ModalHeader>Редактировать место</ModalHeader>
         <ModalCloseButton />
         <ModalBody>

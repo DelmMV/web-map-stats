@@ -37,7 +37,7 @@ function MarkerFilterControl({ onFilterChange }) {
   return (
     <Box
       position="absolute"
-      top="160px"
+      top="180px"
       left="11px"
       zIndex={1000}
     >
@@ -47,7 +47,7 @@ function MarkerFilterControl({ onFilterChange }) {
       aria-label="Фильтр маркеров"
       icon={<FaFilter />}
       variant="solid"
-      size="sm"
+      size="md"
       colorScheme="gray"
       borderRadius={3}
       borderColor="gray"

@@ -33,11 +33,11 @@ const TopUsers = ({userId, admins}) => {
   setError(null);
   try {
     const responses = await Promise.all([
-      fetch(`https://monopiter.ru/api/top-users/${period}`),
-      fetch(`https://monopiter.ru/api/top-sessions/${period}`),
-      fetch(`https://monopiter.ru/api/top-daily-distances/${period}`),
-      fetch(`https://monopiter.ru/api/total-distance/${period}`),
-      fetch(`https://monopiter.ru/api/total-category-by-distance/${period}`)
+      fetch(`https://api.monopiter.ru/api/top-users/${period}`),
+      fetch(`https://api.monopiter.ru/api/top-sessions/${period}`),
+      fetch(`https://api.monopiter.ru/api/top-daily-distances/${period}`),
+      fetch(`https://api.monopiter.ru/api/total-distance/${period}`),
+      fetch(`https://api.monopiter.ru/api/total-category-by-distance/${period}`)
     ]);
 
     const results = await Promise.all(responses.map(async (response) => {

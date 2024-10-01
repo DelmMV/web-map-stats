@@ -57,7 +57,7 @@ const AddStationModal = ({ isOpen, onClose, onSave }) => {
   return (
     <Modal isOpen={isOpen} onClose={() => { onClose(); resetForm(); }}>
       <ModalOverlay />
-      <ModalContent>
+      <ModalContent margin={2}>
         <ModalHeader>Добавить новое место</ModalHeader>
         <ModalCloseButton />
         <ModalBody>

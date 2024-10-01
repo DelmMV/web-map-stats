@@ -22,7 +22,7 @@ import { format } from 'date-fns';
 import { FaThumbsUp, FaThumbsDown, FaRoute } from 'react-icons/fa';
 
 // Предполагается, что URL API задан в переменных окружения
-const API_URL = 'https://monopiter.ru';
+const API_URL = 'https://api.monopiter.ru';
 
 function StationModal({ isOpen, onClose, station, onEdit, onDelete, isAdmin, userId }) {
   const [isImageLoading, setIsImageLoading] = useState(true);
@@ -87,7 +87,7 @@ function StationModal({ isOpen, onClose, station, onEdit, onDelete, isAdmin, use
     } finally {
       setIsLoading(false);
     }
-  }; 
+  };
   
   const handleRouteClick = useCallback(() => {
     if (station && station.latitude && station.longitude) {
@@ -141,18 +141,17 @@ function StationModal({ isOpen, onClose, station, onEdit, onDelete, isAdmin, use
   const closeFullImage = useCallback(() => setIsFullImageOpen(false), []);
 
   if (!station) return null;
-
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} isCentered>
         <ModalOverlay />
-        <ModalContent maxW="90%" maxH="90%" overflow="auto">
+        <ModalContent overflow="auto" margin={2}>
           <ModalHeader p={2}>{getMarkerTypeTitle(station.markerType)}</ModalHeader>
           <ModalCloseButton />
           <ModalBody p={2}>
             <VStack align="stretch" spacing={1}>
               {station.photo && (
-                <Box position="relative" width="100%" height="300px" cursor="pointer" onClick={openFullImage}>
+                <Box position="relative " width="100%" height="300px" cursor="pointer" onClick={openFullImage}>
                   {isImageLoading && (
                     <Box
                       position="absolute"

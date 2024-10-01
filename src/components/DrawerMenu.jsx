@@ -111,20 +111,18 @@ const DrawerMenu = ({
 
       {/* Секция для общего пробега активных маршрутов */}
         {totalActiveDistance > 0 && (
-          <>
-          <Divider />
-
+          <Box position="absolute" bottom={90} left={0} right={0} m={2}>
           <Box p={2} borderWidth={1} borderRadius="md" borderColor="gray">
             <Text fontWeight="bold" fontSize="sm">
               Общий пробег маршрутов: {(totalActiveDistance / 1000).toFixed(2)} км
             </Text>
           </Box>
-          </>
+          </Box>
         )}
 
       {/* Секция для меню активных маршрутов */}
       {Object.keys(routesState.data).length > 0 && (
-        <Box>
+        <Box position="absolute" bottom={0} left={0} right={0} m={2}>
           <Text fontWeight="bold" mb={2}>Активные маршруты</Text>
           <Flex align="center">
             <IconButton

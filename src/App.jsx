@@ -4,41 +4,63 @@ import NavBar from './NavBar.jsx';
 import UserMap from './UserMap.jsx';
 import TopUsers from "./TopUsers.jsx";
 import WeeklyStats from "./WeeklyStats.jsx";
-import {useEffect, useState} from "react";
+import { useState, useEffect } from "react";
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import 'leaflet-sidebar-v2/css/leaflet-sidebar.css';
 import './index.css';
+import { useTelegramUser } from './hooks/useTelegramUser';
+import TelegramLoginWidget from './components/TelegramLoginWidget';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 function App() {
-const adminIds = [200885469, 900133683, 527549474, 294170514, 5550302390, 495310665];
-
-//const userId = 200885469; // Example userId
-const [userId, setUserId] = useState(null);
-
+  const adminIds = [200885469, 900133683, 527549474, 294170514, 5550302390, 495310665];
+  const telegramUser = useTelegramUser();
+  const [user, setUser] = useState(null);
+console.log(user)
   useEffect(() => {
-    if (window.Telegram?.WebApp?.initDataUnsafe) {
-      const telegramUserId = window.Telegram.WebApp.initDataUnsafe.user?.id;
-      setUserId(telegramUserId);
+    if (telegramUser) {
+      setUser(telegramUser);
     }
-  }, []);
+  }, [telegramUser]);
 
-  if (!userId) {
-    return <div>Loading...</div>;
+  const handleAuth = (authUser) => {
+    if (authUser && authUser.id) {
+      setUser({
+        id: authUser.id,
+        firstName: authUser.first_name,
+        lastName: authUser.last_name,
+        username: authUser.username,
+      });
+    } else {
+      console.error('Invalid user data received from Telegram widget');
+    }
+  };
+
+  if (!user || !user.id) {
+    return (
+      <ChakraProvider>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <TelegramLoginWidget botName="LampStatsBot" onAuth={handleAuth} />
+        </div>
+      </ChakraProvider>
+    );
   }
-
-
+  
   return (
+    <QueryClientProvider client={queryClient}>
       <ChakraProvider>
         <HashRouter>
           <Routes>
-            <Route path="/" element={<UserMap userId={userId} admins={adminIds}/>} />
-            <Route path="/weekly-stats" element={<WeeklyStats userId={userId} />} />
-            <Route path="/top-users" element={<TopUsers userId={userId} admins={adminIds}/>} />
+            <Route path="/" element={<UserMap userId={user.id} admins={adminIds}/>} />
+            <Route path="/weekly-stats" element={<WeeklyStats userId={user.id} />} />
+            <Route path="/top-users" element={<TopUsers userId={user.id} admins={adminIds}/>} />
           </Routes>
           <NavBar />
         </HashRouter>
       </ChakraProvider>
+    </QueryClientProvider>
   );
 }
 
