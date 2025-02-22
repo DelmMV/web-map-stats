@@ -8,10 +8,9 @@ import {
 	DrawerHeader,
 	DrawerOverlay,
 	IconButton,
-	Text,
+	Tooltip,
 	useDisclosure,
 	useToast,
-	VStack,
 } from '@chakra-ui/react'
 import imageCompression from 'browser-image-compression'
 import haversine from 'haversine-distance'
@@ -45,6 +44,7 @@ import {
 	customIconSvgCharger,
 	customIconSvgCharger24,
 	customIconSvgRange,
+	customIconSvgWorkshop,
 	customInterestingIcon,
 } from './components/CustomIcon'
 import HeatmapLayer from './components/HeatmapLayer'
@@ -70,6 +70,7 @@ const EditStationModal = React.lazy(() =>
 )
 const StationModal = React.lazy(() => import('./components/StationModal'))
 const DrawerMenu = React.lazy(() => import('./components/DrawerMenu'))
+const WorkshopModal = React.lazy(() => import('./components/WorkshopModal'))
 
 // Constants
 const GEOLOCATION_OPTIONS = {
@@ -147,6 +148,9 @@ const UserMap = ({ userId, admins }) => {
 	const [mapLayer, setMapLayer] = useState(() => {
 		return localStorage.getItem('mapLayer') || 'default'
 	})
+
+	const [selectedWorkshop, setSelectedWorkshop] = useState(null)
+	const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false)
 
 	// Добавляем эффект для синхронизации состояния с localStorage
 	useEffect(() => {
@@ -657,6 +661,7 @@ const UserMap = ({ userId, admins }) => {
 	const interestingIcon = useMemo(() => customInterestingIcon(), [])
 	const dangerIcon = useMemo(() => customDangerIcon(), [])
 	const chatIcon = useMemo(() => customChatIcon(), [])
+	const workshopIcon = useMemo(() => customIconSvgWorkshop(), [])
 
 	const getMarkerIcon = useCallback(
 		station => {
@@ -741,8 +746,15 @@ const UserMap = ({ userId, admins }) => {
 		fetchWorkshops()
 	}, [])
 
+	// Обработчик клика по маркеру мастерской
+	const handleWorkshopClick = useCallback(workshop => {
+		setSelectedWorkshop(workshop)
+		setIsWorkshopModalOpen(true)
+	}, [])
+
 	return (
 		<Box
+			position='relative'
 			display='flex'
 			flexDirection='column'
 			height='100vh'
@@ -946,37 +958,20 @@ const UserMap = ({ userId, admins }) => {
 
 					{workshops.map(workshop => (
 						<Marker
-							key={workshop._id}
+							key={workshop._id.$oid}
 							position={[workshop.latitude, workshop.longitude]}
-							icon={L.divIcon({
-								className: 'workshop-marker',
-								html: `<div style="
-									background-color: #4A5568;
-									color: white;
-									width: 30px;
-									height: 30px;
-									display: flex;
-									align-items: center;
-									justify-content: center;
-									border-radius: 50%;
-									border: 2px solid white;
-									font-size: 16px;
-								">🔧</div>`,
-								iconSize: [30, 30],
-								iconAnchor: [15, 15],
-							})}
+							icon={workshopIcon}
+							eventHandlers={{
+								click: () => handleWorkshopClick(workshop),
+							}}
 						>
-							<Popup>
-								<VStack align='start' spacing={1}>
-									<Text fontWeight='bold'>{workshop.name}</Text>
-									{workshop.address && (
-										<Text fontSize='sm'>Адрес: {workshop.address}</Text>
-									)}
-									{workshop.description && (
-										<Text fontSize='sm'>{workshop.description}</Text>
-									)}
-								</VStack>
-							</Popup>
+							<Tooltip>
+								<div>
+									<strong>{workshop.name}</strong>
+									<br />
+									{workshop.address}
+								</div>
+							</Tooltip>
 						</Marker>
 					))}
 
@@ -1080,6 +1075,12 @@ const UserMap = ({ userId, admins }) => {
 					onDelete={handleDeleteStation}
 					isAdmin={isAdmin}
 					userId={userId}
+				/>
+
+				<WorkshopModal
+					isOpen={isWorkshopModalOpen}
+					onClose={() => setIsWorkshopModalOpen(false)}
+					workshop={selectedWorkshop}
 				/>
 			</Suspense>
 		</Box>
