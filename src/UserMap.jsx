@@ -8,8 +8,10 @@ import {
 	DrawerHeader,
 	DrawerOverlay,
 	IconButton,
+	Text,
 	useDisclosure,
 	useToast,
+	VStack,
 } from '@chakra-ui/react'
 import imageCompression from 'browser-image-compression'
 import haversine from 'haversine-distance'
@@ -45,7 +47,6 @@ import {
 	customIconSvgRange,
 	customInterestingIcon,
 } from './components/CustomIcon'
-import CustomZoomControl from './components/CustomZoomControl'
 import HeatmapLayer from './components/HeatmapLayer'
 import MarkerClusterGroup from './components/MarkerClusterGroup'
 import MarkerFilterControl from './components/MarkerFilterControl'
@@ -106,7 +107,11 @@ const UserMap = ({ userId, admins }) => {
 	const [heatmapYear, setHeatmapYear] = useState(new Date().getFullYear())
 	const [heatmapMonth, setHeatmapMonth] = useState(new Date().getMonth() + 1)
 
-	const { data: activeUsers, isLoading: isActiveUsersLoading, error: activeUsersError } = useActiveUsers();
+	const {
+		data: activeUsers,
+		isLoading: isActiveUsersLoading,
+		error: activeUsersError,
+	} = useActiveUsers()
 
 	const [showActiveUsers, setShowActiveUsers] = useState(false)
 
@@ -714,6 +719,28 @@ const UserMap = ({ userId, admins }) => {
 		iconAnchor: [7, 7],
 	})
 
+	// Добавляем состояние для мастерских
+	const [workshops, setWorkshops] = useState([])
+
+	// Добавляем загрузку мастерских
+	useEffect(() => {
+		const fetchWorkshops = async () => {
+			try {
+				const response = await fetch('https://api.monopiter.ru/api/workshops/')
+				const data = await response.json()
+				// Фильтруем только мастерские с координатами
+				const workshopsWithCoords = data.filter(
+					workshop => workshop.latitude && workshop.longitude
+				)
+				setWorkshops(workshopsWithCoords)
+			} catch (error) {
+				console.error('Error fetching workshops:', error)
+			}
+		}
+
+		fetchWorkshops()
+	}, [])
+
 	return (
 		<Box
 			display='flex'
@@ -889,9 +916,15 @@ const UserMap = ({ userId, admins }) => {
 									className: 'active-user-marker',
 									html: `
 										<div style="display: flex; flex-direction: column; align-items: center;">
-											<div style="width: 45px; height: 45px; border-radius: 50%; overflow: hidden; border: 2px solid white;">
-												<img src="${user.avatarUrl || '/pwa-192.png'}" alt="${user.username}" style="width: 100%; height: 100%; object-fit: cover;">
-											</div>
+										<div style="width: 45px; height: 45px; border-radius: 50%; overflow: hidden; border: 2px solid white; background-image: url('/pwa-192.png'); background-size: cover;">
+                        <img 
+                          src="${user.avatarUrl}" 
+                          alt="${user.username}" 
+                          style="width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s;"
+                          onload="this.style.opacity = 1;"
+                          onerror="this.style.display = 'none';"
+                        >
+                    </div>
 											<div style="background-color: rgba(255, 255, 255, 0.7); padding: 2px 4px; border-radius: 3px; margin-top: 2px; font-size: 10px;">
 												${user.username || 'Пользователь'}
 												${user.averageSpeed.toFixed(0)} км/ч
@@ -905,17 +938,53 @@ const UserMap = ({ userId, admins }) => {
 								<Popup>
 									Активный пользователь: {user.username || 'Неизвестный'}
 									<br />
-									Последняя активность: {new Date(user.lastActive * 1000).toLocaleString()}
+									Последняя активность:{' '}
+									{new Date(user.lastActive * 1000).toLocaleString()}
 								</Popup>
 							</Marker>
 						))}
+
+					{workshops.map(workshop => (
+						<Marker
+							key={workshop._id}
+							position={[workshop.latitude, workshop.longitude]}
+							icon={L.divIcon({
+								className: 'workshop-marker',
+								html: `<div style="
+									background-color: #4A5568;
+									color: white;
+									width: 30px;
+									height: 30px;
+									display: flex;
+									align-items: center;
+									justify-content: center;
+									border-radius: 50%;
+									border: 2px solid white;
+									font-size: 16px;
+								">🔧</div>`,
+								iconSize: [30, 30],
+								iconAnchor: [15, 15],
+							})}
+						>
+							<Popup>
+								<VStack align='start' spacing={1}>
+									<Text fontWeight='bold'>{workshop.name}</Text>
+									{workshop.address && (
+										<Text fontSize='sm'>Адрес: {workshop.address}</Text>
+									)}
+									{workshop.description && (
+										<Text fontSize='sm'>{workshop.description}</Text>
+									)}
+								</VStack>
+							</Popup>
+						</Marker>
+					))}
 
 					<MapEvents />
 					{showChargingStations && (
 						<MarkerFilterControl onFilterChange={handleFilterChange} />
 					)}
-					
-					
+
 					<Box position='absolute' top='81px' left='11px' zIndex={1000}>
 						<IconButton
 							onClick={toggleChargingStations}
@@ -970,7 +1039,7 @@ const UserMap = ({ userId, admins }) => {
 					icon={<FaLocationArrow />}
 					colorScheme='blue'
 					size='md'
-					aria-label='Опред��лить местоположение'
+					aria-label='Определить местоположение'
 				/>
 			</Box>
 
