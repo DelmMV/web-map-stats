@@ -183,6 +183,7 @@ const UserMap = ({ userId, admins }) => {
 		interesting: true,
 		danger: true,
 		chat: true,
+		workshop: true,
 	})
 
 	const [userPosition, setUserPosition] = useState(null)
@@ -666,6 +667,8 @@ const UserMap = ({ userId, admins }) => {
 	const getMarkerIcon = useCallback(
 		station => {
 			switch (station.markerType) {
+				case 'workshop':
+					return workshopIcon
 				case 'charging':
 					return station.is24Hours ? chargingStationIcon24 : chargingStationIcon
 				case 'chargingAuto':
@@ -677,7 +680,7 @@ const UserMap = ({ userId, admins }) => {
 				case 'chat':
 					return chatIcon
 				default:
-					return chargingStationIcon
+					return null
 			}
 		},
 		[
@@ -687,6 +690,7 @@ const UserMap = ({ userId, admins }) => {
 			interestingIcon,
 			dangerIcon,
 			chatIcon,
+			workshopIcon,
 		]
 	)
 
@@ -865,7 +869,43 @@ const UserMap = ({ userId, admins }) => {
 					</LayersControl>
 
 					{showChargingStations && filteredChargingStations.length > 0 && (
-						<MarkerClusterGroup>{stationMarkers}</MarkerClusterGroup>
+						<MarkerClusterGroup>
+							{filteredChargingStations
+								.filter(station => markerFilters[station.markerType])
+								.map(station => (
+									<Marker
+										key={station._id}
+										position={[station.latitude, station.longitude]}
+										icon={getMarkerIcon(station)}
+										eventHandlers={{
+											click: () => {
+												setSelectedStation(station)
+												onStationModalOpen()
+											},
+										}}
+									/>
+								))}
+							{workshops
+								.filter(() => markerFilters.workshop)
+								.map(workshop => (
+									<Marker
+										key={workshop._id}
+										position={[workshop.latitude, workshop.longitude]}
+										icon={workshopIcon}
+										eventHandlers={{
+											click: () => handleWorkshopClick(workshop),
+										}}
+									>
+										<Tooltip>
+											<div>
+												<strong>{workshop.name}</strong>
+												<br />
+												{workshop.address}
+											</div>
+										</Tooltip>
+									</Marker>
+								))}
+						</MarkerClusterGroup>
 					)}
 
 					{Object.keys(routesState.data).map((sessionId, idx) => {
@@ -955,25 +995,6 @@ const UserMap = ({ userId, admins }) => {
 								</Popup>
 							</Marker>
 						))}
-
-					{workshops.map(workshop => (
-						<Marker
-							key={workshop._id.$oid}
-							position={[workshop.latitude, workshop.longitude]}
-							icon={workshopIcon}
-							eventHandlers={{
-								click: () => handleWorkshopClick(workshop),
-							}}
-						>
-							<Tooltip>
-								<div>
-									<strong>{workshop.name}</strong>
-									<br />
-									{workshop.address}
-								</div>
-							</Tooltip>
-						</Marker>
-					))}
 
 					<MapEvents />
 					{showChargingStations && (
