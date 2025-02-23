@@ -177,13 +177,19 @@ const UserMap = ({ userId, admins }) => {
 		setShowActiveUsers(prev => !prev)
 	}, [])
 
-	const [markerFilters, setMarkerFilters] = useState({
-		charging: true,
-		chargingAuto: true,
-		interesting: true,
-		danger: true,
-		chat: true,
-		workshop: true,
+	// Инициализируем состояние фильтров из localStorage
+	const [markerFilters, setMarkerFilters] = useState(() => {
+		const savedFilters = localStorage.getItem('markerFilters')
+		return savedFilters
+			? JSON.parse(savedFilters)
+			: {
+					charging: true,
+					chargingAuto: true,
+					interesting: true,
+					danger: true,
+					chat: true,
+					workshop: true,
+			  }
 	})
 
 	const [userPosition, setUserPosition] = useState(null)
@@ -260,9 +266,9 @@ const UserMap = ({ userId, admins }) => {
 		setShowChargingStations(prev => !prev)
 	}, [])
 
-	const handleFilterChange = useCallback(newFilters => {
-		setMarkerFilters(newFilters)
-	}, [])
+	// const handleFilterChange = useCallback(newFilters => {
+	// 	setMarkerFilters(newFilters)
+	// }, [])
 
 	const filteredChargingStations = useMemo(() => {
 		return chargingStations.filter(
@@ -606,7 +612,7 @@ const UserMap = ({ userId, admins }) => {
 				onEditClose()
 				toast({
 					position: 'top-right',
-					title: 'Станция оновлена',
+					title: 'Станция обновлена',
 					status: 'success',
 					duration: 3000,
 					isClosable: true,
@@ -667,8 +673,6 @@ const UserMap = ({ userId, admins }) => {
 	const getMarkerIcon = useCallback(
 		station => {
 			switch (station.markerType) {
-				case 'workshop':
-					return workshopIcon
 				case 'charging':
 					return station.is24Hours ? chargingStationIcon24 : chargingStationIcon
 				case 'chargingAuto':
@@ -679,8 +683,10 @@ const UserMap = ({ userId, admins }) => {
 					return dangerIcon
 				case 'chat':
 					return chatIcon
+				case 'workshop':
+					return workshopIcon
 				default:
-					return null
+					return chargingStationIcon
 			}
 		},
 		[
@@ -694,21 +700,21 @@ const UserMap = ({ userId, admins }) => {
 		]
 	)
 
-	const stationMarkers = useMemo(() => {
-		return filteredChargingStations.map(station => (
-			<Marker
-				key={station._id}
-				position={[station.latitude, station.longitude]}
-				icon={getMarkerIcon(station)}
-				eventHandlers={{
-					click: () => {
-						setSelectedStation(station)
-						onStationModalOpen()
-					},
-				}}
-			/>
-		))
-	}, [filteredChargingStations, getMarkerIcon, onStationModalOpen])
+	// const stationMarkers = useMemo(() => {
+	// 	return filteredChargingStations.map(station => (
+	// 		<Marker
+	// 			key={station._id}
+	// 			position={[station.latitude, station.longitude]}
+	// 			icon={getMarkerIcon(station)}
+	// 			eventHandlers={{
+	// 				click: () => {
+	// 					setSelectedStation(station)
+	// 					onStationModalOpen()
+	// 				},
+	// 			}}
+	// 		/>
+	// 	))
+	// }, [filteredChargingStations, getMarkerIcon, onStationModalOpen])
 
 	const MapEvents = () => {
 		useMapEvents({
@@ -868,10 +874,15 @@ const UserMap = ({ userId, admins }) => {
 						</LayersControl.BaseLayer>
 					</LayersControl>
 
-					{showChargingStations && filteredChargingStations.length > 0 && (
+					{showChargingStations && (
 						<MarkerClusterGroup>
+							{/* Отображаем все станции кроме мастерских */}
 							{filteredChargingStations
-								.filter(station => markerFilters[station.markerType])
+								.filter(
+									station =>
+										station.markerType !== 'workshop' &&
+										markerFilters[station.markerType]
+								)
 								.map(station => (
 									<Marker
 										key={station._id}
@@ -885,6 +896,8 @@ const UserMap = ({ userId, admins }) => {
 										}}
 									/>
 								))}
+
+							{/* Отдельно отображаем мастерские */}
 							{workshops
 								.filter(() => markerFilters.workshop)
 								.map(workshop => (
@@ -998,7 +1011,10 @@ const UserMap = ({ userId, admins }) => {
 
 					<MapEvents />
 					{showChargingStations && (
-						<MarkerFilterControl onFilterChange={handleFilterChange} />
+						<MarkerFilterControl
+							filters={markerFilters}
+							onFilterChange={setMarkerFilters}
+						/>
 					)}
 
 					<Box position='absolute' top='81px' left='11px' zIndex={1000}>

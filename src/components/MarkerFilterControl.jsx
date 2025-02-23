@@ -12,18 +12,25 @@ import React, { useState } from 'react'
 import { FaFilter } from 'react-icons/fa'
 
 function MarkerFilterControl({ onFilterChange }) {
-	const [filters, setFilters] = useState({
-		charging: true,
-		chargingAuto: true,
-		interesting: true,
-		danger: true,
-		chat: true,
-		workshop: true,
+	const [filters, setFilters] = useState(() => {
+		const savedFilters = localStorage.getItem('markerFilters')
+		console.log(savedFilters)
+		return savedFilters
+			? JSON.parse(savedFilters)
+			: {
+					charging: true,
+					chargingAuto: true,
+					interesting: true,
+					danger: true,
+					chat: true,
+					workshop: true,
+			  }
 	})
 
 	const handleFilterChange = type => {
 		const newFilters = { ...filters, [type]: !filters[type] }
 		setFilters(newFilters)
+		localStorage.setItem('markerFilters', JSON.stringify(newFilters))
 		onFilterChange(newFilters)
 	}
 
