@@ -20,9 +20,9 @@ const WorkshopModal = ({ isOpen, onClose, workshop }) => {
         <ModalHeader>Мастерская: {workshop.name}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
-          <VStack align="stretch" spacing={2}>
-            <Text><strong>Адрес:</strong> {workshop.address}</Text>
-            <Text><strong>Описание:</strong> {workshop.description}</Text>
+          <VStack align="stretch" spacing={0}>
+            <Text fontSize="sm"><strong>Адрес:</strong> {workshop.address}</Text>
+            <Text fontSize="sm"><strong>Описание:</strong> {workshop.description}</Text>
           </VStack>
         </ModalBody>
       </ModalContent>

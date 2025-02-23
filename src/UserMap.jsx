@@ -150,7 +150,11 @@ const UserMap = ({ userId, admins }) => {
 	})
 
 	const [selectedWorkshop, setSelectedWorkshop] = useState(null)
-	const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false)
+	const {
+		isOpen: isWorkshopModalOpen,
+		onOpen: onWorkshopModalOpen,
+		onClose: onWorkshopModalClose,
+	} = useDisclosure()
 
 	// Добавляем эффект для синхронизации состояния с localStorage
 	useEffect(() => {
@@ -670,71 +674,6 @@ const UserMap = ({ userId, admins }) => {
 	const chatIcon = useMemo(() => customChatIcon(), [])
 	const workshopIcon = useMemo(() => customIconSvgWorkshop(), [])
 
-	const getMarkerIcon = useCallback(
-		station => {
-			switch (station.markerType) {
-				case 'charging':
-					return station.is24Hours ? chargingStationIcon24 : chargingStationIcon
-				case 'chargingAuto':
-					return chargingStationAutoIcon
-				case 'interesting':
-					return interestingIcon
-				case 'danger':
-					return dangerIcon
-				case 'chat':
-					return chatIcon
-				case 'workshop':
-					return workshopIcon
-				default:
-					return chargingStationIcon
-			}
-		},
-		[
-			chargingStationIcon,
-			chargingStationIcon24,
-			chargingStationAutoIcon,
-			interestingIcon,
-			dangerIcon,
-			chatIcon,
-			workshopIcon,
-		]
-	)
-
-	// const stationMarkers = useMemo(() => {
-	// 	return filteredChargingStations.map(station => (
-	// 		<Marker
-	// 			key={station._id}
-	// 			position={[station.latitude, station.longitude]}
-	// 			icon={getMarkerIcon(station)}
-	// 			eventHandlers={{
-	// 				click: () => {
-	// 					setSelectedStation(station)
-	// 					onStationModalOpen()
-	// 				},
-	// 			}}
-	// 		/>
-	// 	))
-	// }, [filteredChargingStations, getMarkerIcon, onStationModalOpen])
-
-	const MapEvents = () => {
-		useMapEvents({
-			click: e => {
-				if (isAddingStation) {
-					handleMapClick(e.latlng)
-				}
-			},
-		})
-		return null
-	}
-
-	const userIcon = L.divIcon({
-		className: 'user-marker',
-		html: '<div style="background-color: blue; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>',
-		iconSize: [14, 14],
-		iconAnchor: [7, 7],
-	})
-
-	// Добавляем состояние для мастерских
 	const [workshops, setWorkshops] = useState([])
 
 	// Добавляем загрузку мастерских
@@ -756,11 +695,95 @@ const UserMap = ({ userId, admins }) => {
 		fetchWorkshops()
 	}, [])
 
-	// Обработчик клика по маркеру мастерской
+	// Сначала создаем мемоизированные иконки
+	const icons = useMemo(
+		() => ({
+			charging: customIconSvgCharger(),
+			charging24: customIconSvgCharger24(),
+			chargingAuto: customAutoChargerIcon(),
+			interesting: customInterestingIcon(),
+			danger: customDangerIcon(),
+			chat: customChatIcon(),
+			workshop: customIconSvgWorkshop(),
+		}),
+		[]
+	)
+
+	// Затем создаем функцию получения иконок
+	const getMarkerIcon = useCallback(
+		station => {
+			if (station.markerType === 'charging' && station.is24Hours) {
+				return icons.charging24
+			}
+			return icons[station.markerType] || icons.charging
+		},
+		[icons]
+	)
+
 	const handleWorkshopClick = useCallback(workshop => {
 		setSelectedWorkshop(workshop)
-		setIsWorkshopModalOpen(true)
+		onWorkshopModalOpen()
 	}, [])
+
+	// Фильтрация маркеров
+	const filteredMarkers = useMemo(() => {
+		const regularMarkers = filteredChargingStations
+			.filter(
+				station =>
+					station.markerType !== 'workshop' &&
+					markerFilters[station.markerType] &&
+					(isAdmin ||
+						typeof station.dislikes === 'undefined' ||
+						station.dislikes < 5)
+			)
+			.map(station => ({
+				...station,
+				icon: getMarkerIcon(station),
+				onClick: () => {
+					setSelectedStation(station)
+					onStationModalOpen()
+				},
+			}))
+
+		const workshopMarkers = workshops
+			.filter(() => markerFilters.workshop)
+			.map(workshop => ({
+				...workshop,
+				markerType: 'workshop',
+				icon: icons.workshop,
+				onClick: () => handleWorkshopClick(workshop),
+			}))
+
+		return [...regularMarkers, ...workshopMarkers]
+	}, [
+		filteredChargingStations,
+		workshops,
+		markerFilters,
+		isAdmin,
+		getMarkerIcon,
+		icons,
+		handleWorkshopClick,
+		setSelectedStation,
+		onStationModalOpen,
+	])
+
+	const MapEvents = () => {
+		useMapEvents({
+			click: e => {
+				if (isAddingStation) {
+					handleMapClick(e.latlng)
+				}
+			},
+		})
+		return null
+	}
+
+	const userIcon = L.divIcon({
+		className: 'user-marker',
+		html: '<div style="background-color: blue; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>',
+		iconSize: [14, 14],
+		iconAnchor: [7, 7],
+	})
 
 	return (
 		<Box
@@ -876,48 +899,26 @@ const UserMap = ({ userId, admins }) => {
 
 					{showChargingStations && (
 						<MarkerClusterGroup>
-							{/* Отображаем все станции кроме мастерских */}
-							{filteredChargingStations
-								.filter(
-									station =>
-										station.markerType !== 'workshop' &&
-										markerFilters[station.markerType]
-								)
-								.map(station => (
-									<Marker
-										key={station._id}
-										position={[station.latitude, station.longitude]}
-										icon={getMarkerIcon(station)}
-										eventHandlers={{
-											click: () => {
-												setSelectedStation(station)
-												onStationModalOpen()
-											},
-										}}
-									/>
-								))}
-
-							{/* Отдельно отображаем мастерские */}
-							{workshops
-								.filter(() => markerFilters.workshop)
-								.map(workshop => (
-									<Marker
-										key={workshop._id}
-										position={[workshop.latitude, workshop.longitude]}
-										icon={workshopIcon}
-										eventHandlers={{
-											click: () => handleWorkshopClick(workshop),
-										}}
-									>
+							{filteredMarkers.map(marker => (
+								<Marker
+									key={marker._id}
+									position={[marker.latitude, marker.longitude]}
+									icon={marker.icon}
+									eventHandlers={{
+										click: marker.onClick,
+									}}
+								>
+									{marker.markerType === 'workshop' && (
 										<Tooltip>
 											<div>
-												<strong>{workshop.name}</strong>
+												<strong>{marker.name}</strong>
 												<br />
-												{workshop.address}
+												{marker.address}
 											</div>
 										</Tooltip>
-									</Marker>
-								))}
+									)}
+								</Marker>
+							))}
 						</MarkerClusterGroup>
 					)}
 
@@ -1116,7 +1117,7 @@ const UserMap = ({ userId, admins }) => {
 
 				<WorkshopModal
 					isOpen={isWorkshopModalOpen}
-					onClose={() => setIsWorkshopModalOpen(false)}
+					onClose={onWorkshopModalClose}
 					workshop={selectedWorkshop}
 				/>
 			</Suspense>
