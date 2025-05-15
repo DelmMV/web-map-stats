@@ -72,7 +72,7 @@ const AddStationModal = ({ isOpen, onClose, onSave }) => {
 									<option value='chargingAuto'>Автомобильная зарядка</option>
 									<option value='interesting'>Интересное место</option>
 									<option value='danger'>Опасное место</option>
-									<option value='workshop'>Сервис</option>
+									<option value="chat">Разговорчики</option>
 								</Select>
 								{markerType === 'charging' && (
 									<Checkbox

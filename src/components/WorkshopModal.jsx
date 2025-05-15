@@ -1,33 +1,51 @@
-import React from 'react';
 import {
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
-  VStack,
-  Text,
-} from '@chakra-ui/react';
+	Box,
+	Modal,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalHeader,
+	ModalOverlay,
+	Text,
+	VStack,
+} from '@chakra-ui/react'
+import React, { memo } from 'react'
 
 const WorkshopModal = ({ isOpen, onClose, workshop }) => {
-  if (!workshop) return null;
+	if (!workshop) return null
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md">
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Мастерская: {workshop.name}</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-          <VStack align="stretch" spacing={0}>
-            <Text fontSize="sm"><strong>Адрес:</strong> {workshop.address}</Text>
-            <Text fontSize="sm"><strong>Описание:</strong> {workshop.description}</Text>
-          </VStack>
-        </ModalBody>
-      </ModalContent>
-    </Modal>
-  );
-};
+	return (
+		<Modal
+			isOpen={isOpen}
+			onClose={onClose}
+			size='md'
+			motionPreset='slideInBottom'
+			blockScrollOnMount={false}
+			isCentered
+		>
+			<ModalOverlay backdropFilter='blur(2px)' />
+			<ModalContent>
+				<ModalHeader>Мастерская: {workshop.name}</ModalHeader>
+				<ModalCloseButton />
+				<ModalBody>
+					<VStack align='stretch' spacing={2} mb={2}>
+						<Box>
+							<Text fontSize='sm' fontWeight='bold'>
+								Адрес:
+							</Text>
+							<Text fontSize='sm'>{workshop.address}</Text>
+						</Box>
+						<Box>
+							<Text fontSize='sm' fontWeight='bold'>
+								Описание:
+							</Text>
+							<Text fontSize='sm'>{workshop.description}</Text>
+						</Box>
+					</VStack>
+				</ModalBody>
+			</ModalContent>
+		</Modal>
+	)
+}
 
-export default WorkshopModal;
+export default memo(WorkshopModal)

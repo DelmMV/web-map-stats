@@ -8,7 +8,6 @@ import {
 	DrawerHeader,
 	DrawerOverlay,
 	IconButton,
-	Tooltip,
 	useDisclosure,
 	useToast,
 } from '@chakra-ui/react'
@@ -19,6 +18,8 @@ import 'leaflet.heat'
 import 'leaflet/dist/leaflet.css'
 import React, {
 	Suspense,
+	lazy,
+	memo,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -64,13 +65,11 @@ import { fetchHeatmapData } from './services/heatmapService'
 import { fetchRoute } from './services/routeService'
 import { useActiveUsers } from './services/userService'
 
-const AddStationModal = React.lazy(() => import('./components/AddStationModal'))
-const EditStationModal = React.lazy(() =>
-	import('./components/EditStationModal')
-)
-const StationModal = React.lazy(() => import('./components/StationModal'))
-const DrawerMenu = React.lazy(() => import('./components/DrawerMenu'))
-const WorkshopModal = React.lazy(() => import('./components/WorkshopModal'))
+const DrawerMenu = lazy(() => import('./components/DrawerMenu'))
+const AddStationModal = lazy(() => import('./components/AddStationModal'))
+const EditStationModal = lazy(() => import('./components/EditStationModal'))
+const StationModal = lazy(() => import('./components/StationModal'))
+const WorkshopModalLazy = lazy(() => import('./components/WorkshopModal'))
 
 // Constants
 const GEOLOCATION_OPTIONS = {
@@ -81,6 +80,90 @@ const GEOLOCATION_OPTIONS = {
 const DEFAULT_MAP_CENTER = [59.938676, 30.314487]
 const DEFAULT_MAP_ZOOM = 10
 const HEATMAP_DEBOUNCE_TIME = 300
+
+// Оптимизированный компонент маркера для предотвращения ненужных перерисовок
+const OptimizedMarker = memo(
+	({ marker }) => {
+		const [isPopupOpen, setIsPopupOpen] = useState(false)
+
+		// Обработка открытия/закрытия попапа
+		const handlePopupOpen = useCallback(() => {
+			setIsPopupOpen(true)
+		}, [])
+
+		const handlePopupClose = useCallback(() => {
+			setIsPopupOpen(false)
+		}, [])
+
+		// Создаем event handlers с мемоизацией
+		const eventHandlers = useMemo(
+			() => ({
+				click: () => {
+					if (marker.markerType === 'workshop') {
+						setIsPopupOpen(true)
+					} else {
+						marker.onClick()
+					}
+				},
+			}),
+			[marker]
+		)
+
+		return (
+			<Marker
+				position={[marker.latitude, marker.longitude]}
+				icon={marker.icon}
+				eventHandlers={eventHandlers}
+			>
+				{marker.markerType === 'workshop' && (
+					<Popup
+						autoPan={true}
+						closeOnClick={true}
+						autoClose={true}
+						closeOnEscapeKey={true}
+						closeButton={true}
+						maxWidth={300}
+						onOpen={handlePopupOpen}
+						onClose={handlePopupClose}
+					>
+						<div>
+							<strong>{marker.name}</strong>
+							<br />
+							{marker.address}
+							{isPopupOpen && (
+								<div style={{ marginTop: '8px' }}>
+									<button
+										onClick={marker.onClick}
+										style={{
+											padding: '4px 8px',
+											backgroundColor: '#4299e1',
+											color: 'white',
+											border: 'none',
+											borderRadius: '4px',
+											cursor: 'pointer',
+											fontSize: '12px',
+										}}
+									>
+										Подробнее
+									</button>
+								</div>
+							)}
+						</div>
+					</Popup>
+				)}
+			</Marker>
+		)
+	},
+	(prevProps, nextProps) => {
+		// Оптимизация: ре-рендерим только если изменились ключевые свойства
+		return (
+			prevProps.marker._id === nextProps.marker._id &&
+			prevProps.marker.latitude === nextProps.marker.latitude &&
+			prevProps.marker.longitude === nextProps.marker.longitude &&
+			prevProps.marker.markerType === nextProps.marker.markerType
+		)
+	}
+)
 
 const UserMap = ({ userId, admins }) => {
 	const user = useTelegramUser()
@@ -155,6 +238,8 @@ const UserMap = ({ userId, admins }) => {
 		onOpen: onWorkshopModalOpen,
 		onClose: onWorkshopModalClose,
 	} = useDisclosure()
+
+	const [mapBounds, setMapBounds] = useState(null)
 
 	// Добавляем эффект для синхронизации состояния с localStorage
 	useEffect(() => {
@@ -720,10 +805,29 @@ const UserMap = ({ userId, admins }) => {
 		[icons]
 	)
 
-	const handleWorkshopClick = useCallback(workshop => {
-		setSelectedWorkshop(workshop)
-		onWorkshopModalOpen()
-	}, [])
+	const handleWorkshopClick = useCallback(
+		workshop => {
+			// Предотвращаем ненужные ререндеры при повторном клике на тот же маркер
+			if (selectedWorkshop && selectedWorkshop._id === workshop._id) {
+				return
+			}
+			setSelectedWorkshop(workshop)
+			onWorkshopModalOpen()
+		},
+		[selectedWorkshop, onWorkshopModalOpen]
+	)
+
+	// Мемоизируем маркеры мастерских для предотвращения лишних перерисовок
+	const workshopMarkers = useMemo(() => {
+		return workshops
+			.filter(() => markerFilters.workshop)
+			.map(workshop => ({
+				...workshop,
+				markerType: 'workshop',
+				icon: icons.workshop,
+				onClick: () => handleWorkshopClick(workshop),
+			}))
+	}, [workshops, markerFilters.workshop, icons.workshop, handleWorkshopClick])
 
 	// Фильтрация маркеров
 	const filteredMarkers = useMemo(() => {
@@ -745,36 +849,56 @@ const UserMap = ({ userId, admins }) => {
 				},
 			}))
 
-		const workshopMarkers = workshops
-			.filter(() => markerFilters.workshop)
-			.map(workshop => ({
-				...workshop,
-				markerType: 'workshop',
-				icon: icons.workshop,
-				onClick: () => handleWorkshopClick(workshop),
-			}))
-
 		return [...regularMarkers, ...workshopMarkers]
 	}, [
 		filteredChargingStations,
-		workshops,
+		workshopMarkers,
 		markerFilters,
 		isAdmin,
 		getMarkerIcon,
-		icons,
-		handleWorkshopClick,
 		setSelectedStation,
 		onStationModalOpen,
 	])
 
+	// Обработчик изменения границ карты
+	const handleMapMoveEnd = useCallback(e => {
+		const map = e.target
+		setMapBounds(map.getBounds())
+	}, [])
+
+	// Функция для проверки, находится ли маркер в текущих границах карты
+	const isMarkerInBounds = useCallback(
+		marker => {
+			if (!mapBounds) return true // Если границы не определены, отображаем все маркеры
+			const latLng = L.latLng(marker.latitude, marker.longitude)
+			return mapBounds.contains(latLng)
+		},
+		[mapBounds]
+	)
+
+	// Отфильтрованные маркеры, видимые в текущей области карты
+	const visibleMarkers = useMemo(() => {
+		if (!mapBounds) return filteredMarkers
+		return filteredMarkers.filter(isMarkerInBounds)
+	}, [filteredMarkers, mapBounds, isMarkerInBounds])
+
 	const MapEvents = () => {
-		useMapEvents({
+		const map = useMapEvents({
 			click: e => {
 				if (isAddingStation) {
 					handleMapClick(e.latlng)
 				}
 			},
+			moveend: handleMapMoveEnd,
 		})
+
+		// Инициализация границ карты при первой загрузке
+		useEffect(() => {
+			if (map && !mapBounds) {
+				setMapBounds(map.getBounds())
+			}
+		}, [map, mapBounds])
+
 		return null
 	}
 
@@ -898,26 +1022,16 @@ const UserMap = ({ userId, admins }) => {
 					</LayersControl>
 
 					{showChargingStations && (
-						<MarkerClusterGroup>
-							{filteredMarkers.map(marker => (
-								<Marker
-									key={marker._id}
-									position={[marker.latitude, marker.longitude]}
-									icon={marker.icon}
-									eventHandlers={{
-										click: marker.onClick,
-									}}
-								>
-									{marker.markerType === 'workshop' && (
-										<Tooltip>
-											<div>
-												<strong>{marker.name}</strong>
-												<br />
-												{marker.address}
-											</div>
-										</Tooltip>
-									)}
-								</Marker>
+						<MarkerClusterGroup
+							chunkedLoading={true}
+							spiderfyOnMaxZoom={true}
+							removeOutsideVisibleBounds={true}
+							disableClusteringAtZoom={16}
+							maxClusterRadius={50}
+							zoomToBoundsOnClick={true}
+						>
+							{visibleMarkers.map(marker => (
+								<OptimizedMarker key={marker._id} marker={marker} />
 							))}
 						</MarkerClusterGroup>
 					)}
@@ -1110,16 +1224,16 @@ const UserMap = ({ userId, admins }) => {
 					onClose={onStationModalClose}
 					station={selectedStation}
 					onEdit={handleEditStation}
-					onDelete={handleDeleteStation}
 					isAdmin={isAdmin}
-					userId={userId}
 				/>
 
-				<WorkshopModal
-					isOpen={isWorkshopModalOpen}
-					onClose={onWorkshopModalClose}
-					workshop={selectedWorkshop}
-				/>
+				<Suspense fallback={<Box>Загрузка...</Box>}>
+					<WorkshopModalLazy
+						isOpen={isWorkshopModalOpen}
+						onClose={onWorkshopModalClose}
+						workshop={selectedWorkshop}
+					/>
+				</Suspense>
 			</Suspense>
 		</Box>
 	)

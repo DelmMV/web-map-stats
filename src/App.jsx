@@ -15,15 +15,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 
 function App() {
-  //const user = {id:200885469}; // Example userId
+  const user = {id:200885469}; // Example userId
   const adminIds = [200885469, 900133683, 527549474, 294170514, 5550302390, 495310665];
   const telegramUser = useTelegramUser();
-  const [user, setUser] = useState(null);
-  useEffect(() => {
-    if (telegramUser) {
-      setUser(telegramUser);
-    }
-  }, [telegramUser]);
+  // const [user, setUser] = useState(null);
+  // useEffect(() => {
+  //   if (telegramUser) {
+  //     setUser(telegramUser);
+  //   }
+  // }, [telegramUser]);
 
   const handleAuth = (authUser) => {
     if (authUser && authUser.id) {
