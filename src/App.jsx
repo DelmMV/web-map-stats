@@ -2,6 +2,7 @@ import { ChakraProvider } from '@chakra-ui/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
+import { useEffect, useState } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import TelegramLoginWidget from './components/TelegramLoginWidget'
 import { useTelegramUser } from './hooks/useTelegramUser'
@@ -19,12 +20,12 @@ function App() {
 		200885469, 900133683, 527549474, 294170514, 5550302390, 495310665,
 	]
 	const telegramUser = useTelegramUser()
-	const [user, setUser] = useState(null);
+	const [user, setUser] = useState(null)
 	useEffect(() => {
-	  if (telegramUser) {
-	    setUser(telegramUser);
-	  }
-	}, [telegramUser]);
+		if (telegramUser) {
+			setUser(telegramUser)
+		}
+	}, [telegramUser])
 
 	const handleAuth = authUser => {
 		if (authUser && authUser.id) {
