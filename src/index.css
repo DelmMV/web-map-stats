@@ -1,107 +1,107 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+	font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+	line-height: 1.5;
+	font-weight: 400;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .leaflet-popup-content-wrapper {
-  padding: 7px;
+	padding: 7px;
 }
 
 .leaflet-popup-content {
-  margin: 0;
-  padding: 0;
+	margin: 0;
+	padding: 0;
 }
 
 .custom-popup-addby {
-  font-size: 10px;
-  color: gray;
-  margin: 0;
-  padding: 0;
+	font-size: 10px;
+	color: gray;
+	margin: 0;
+	padding: 0;
 }
 
 .custom-popup-comment {
-  font-size: 14px;
-  color: gray;
-  margin: 0;
-  padding: 0;
+	font-size: 14px;
+	color: gray;
+	margin: 0;
+	padding: 0;
 }
 
 .custom-popup-header {
-  font-size: 19px;
-  font-weight: bolder;
-  margin: 0;
-  padding: 0;
+	font-size: 19px;
+	font-weight: bolder;
+	margin: 0;
+	padding: 0;
 }
 
 .custom-popup .chakra-button {
-  font-size: 12px;
+	font-size: 12px;
 }
 
 .custom-zoom-control {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1000;
-  border: 2px solid gray;
-  border-radius: 4px;
+	position: absolute;
+	left: 11px;
+	top: 50%;
+	transform: translateY(-50%);
+	z-index: 1000;
+	border: 2px solid gray;
+	border-radius: 4px;
 }
 
-.custom-zoom-control button {   
-  width: 30px;
-  height: 30px;
-  line-height: 30px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #666;
-  text-align: center;
-  background: white;
-  border: none;
-  cursor: pointer;
-  display: block;
+.custom-zoom-control button {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	font-size: 18px;
+	font-weight: bold;
+	color: #666;
+	text-align: center;
+	background: white;
+	border: none;
+	cursor: pointer;
+	display: block;
 }
 
 .custom-zoom-control button:first-child {
-  border-bottom: 1px solid #ccc;
+	border-bottom: 1px solid #ccc;
 }
 
 .custom-zoom-control button:hover {
-  background: #f4f4f4;
+	background: #f4f4f4;
 }
 .leaflet-sidebar {
-  bottom: 50px;
-  height: auto !important;
+	bottom: 50px;
+	height: auto !important;
 }
 
 .leaflet-sidebar-content {
-  background-color: white;
+	background-color: white;
 }
 
 .leaflet-sidebar-tabs {
-  background-color: #3182ce;
+	background-color: #3182ce;
 }
 
 .leaflet-sidebar-tabs > ul > li > a {
-  color: white;
+	color: white;
 }
 
 .leaflet-sidebar-tabs > ul > li.active {
-  background-color: white;
+	background-color: white;
 }
 
 .leaflet-sidebar-tabs > ul > li.active > a {
-  color: #3182ce;
+	color: #3182ce;
 }
 
 .leaflet-sidebar-header {
-  background-color: #3182ce;
-  color: white;
+	background-color: #3182ce;
+	color: white;
 }
 /*a {*/
 /*  font-weight: 500;*/
@@ -145,3 +145,57 @@
 /*  outline: 4px auto -webkit-focus-ring-color;*/
 /*}*/
 
+/* Стили для кластеров-диаграмм */
+.marker-cluster-pie g.arc {
+	fill-opacity: 0.8;
+}
+
+.marker-cluster-pie-label {
+	font-size: 16px;
+	font-weight: bold;
+	font-family: sans-serif;
+	pointer-events: none;
+}
+
+/* Стили для кластеров с маркерами одного типа */
+.marker-cluster-single {
+	text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3);
+	font-size: 16px;
+}
+
+/* Категории маркеров для диаграмм */
+.marker-type-charging {
+	fill: #4299e1;
+	stroke: #2b6cb0;
+	stroke-width: 0.3px;
+}
+
+.marker-type-chargingAuto {
+	fill: #48bb78;
+	stroke: #2f855a;
+	stroke-width: 0.3px;
+}
+
+.marker-type-interesting {
+	fill: #ed8936;
+	stroke: #c05621;
+	stroke-width: 0.3px;
+}
+
+.marker-type-danger {
+	fill: #e53e3e;
+	stroke: #c53030;
+	stroke-width: 0.3px;
+}
+
+.marker-type-chat {
+	fill: #805ad5;
+	stroke: #553c9a;
+	stroke-width: 0.3px;
+}
+
+.marker-type-workshop {
+	fill: #718096;
+	stroke: #4a5568;
+	stroke-width: 0.3px;
+}

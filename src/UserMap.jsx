@@ -109,11 +109,20 @@ const OptimizedMarker = memo(
 			[marker]
 		)
 
+		// Создаем опции маркера, включая тип для кластеризации
+		const markerOptions = useMemo(
+			() => ({
+				icon: marker.icon,
+				markerType: marker.markerType || 'charging', // Обеспечиваем значение по умолчанию
+			}),
+			[marker.icon, marker.markerType]
+		)
+
 		return (
 			<Marker
 				position={[marker.latitude, marker.longitude]}
-				icon={marker.icon}
 				eventHandlers={eventHandlers}
+				{...markerOptions}
 			>
 				{marker.markerType === 'workshop' && (
 					<Popup
