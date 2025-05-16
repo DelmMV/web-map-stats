@@ -1233,7 +1233,9 @@ const UserMap = ({ userId, admins }) => {
 					onClose={onStationModalClose}
 					station={selectedStation}
 					onEdit={handleEditStation}
+					onDelete={handleDeleteStation}
 					isAdmin={isAdmin}
+					userId={userId}
 				/>
 
 				<Suspense fallback={<Box>Загрузка...</Box>}>
