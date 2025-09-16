@@ -174,6 +174,60 @@ const OptimizedMarker = memo(
 	}
 )
 
+// Оптимизированный компонент маркера активного пользователя
+const OptimizedActiveUserMarker = memo(
+	({ user }) => {
+		// Мемоизируем иконку пользователя
+		const userIcon = useMemo(() => {
+			return L.divIcon({
+				className: 'active-user-marker',
+				html: `
+					<div style="display: flex; flex-direction: column; align-items: center;">
+					<div style="width: 45px; height: 45px; border-radius: 50%; overflow: hidden; border: 2px solid white; background-image: url('/pwa-192.png'); background-size: cover;">
+                      <img 
+                        src="${user.avatarUrl}" 
+                        alt="${user.username}" 
+                        style="width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s;"
+                        onload="this.style.opacity = 1;"
+                        onerror="this.style.display = 'none';"
+                      >
+                  </div>
+					<div style="background-color: rgba(255, 255, 255, 0.7); padding: 2px 4px; border-radius: 3px; margin-top: 2px; font-size: 10px;">
+						${user.username || 'Пользователь'}
+						${user.averageSpeed.toFixed(0)} км/ч
+					</div>
+					</div>
+				`,
+				iconSize: [40, 50],
+				iconAnchor: [20, 50],
+			})
+		}, [user.avatarUrl, user.username, user.averageSpeed])
+
+		return (
+			<Marker position={[user.latitude, user.longitude]} icon={userIcon}>
+				<Popup>
+					Активный пользователь: {user.username || 'Неизвестный'}
+					<br />
+					Последняя активность:{' '}
+					{new Date(user.lastActive * 1000).toLocaleString()}
+				</Popup>
+			</Marker>
+		)
+	},
+	(prevProps, nextProps) => {
+		// Ре-рендерим только если изменились ключевые свойства пользователя
+		return (
+			prevProps.user.userId === nextProps.user.userId &&
+			prevProps.user.latitude === nextProps.user.latitude &&
+			prevProps.user.longitude === nextProps.user.longitude &&
+			prevProps.user.averageSpeed === nextProps.user.averageSpeed &&
+			prevProps.user.lastActive === nextProps.user.lastActive &&
+			prevProps.user.username === nextProps.user.username &&
+			prevProps.user.avatarUrl === nextProps.user.avatarUrl
+		)
+	}
+)
+
 const UserMap = ({ userId, admins }) => {
 	const user = useTelegramUser()
 
@@ -886,6 +940,7 @@ const UserMap = ({ userId, admins }) => {
 	)
 
 	// Отфильтрованные маркеры, видимые в текущей области карты
+	// Исключаем активных пользователей из фильтрации по границам, чтобы избежать мерцания
 	const visibleMarkers = useMemo(() => {
 		if (!mapBounds) return filteredMarkers
 		return filteredMarkers.filter(isMarkerInBounds)
@@ -1098,39 +1153,7 @@ const UserMap = ({ userId, admins }) => {
 						!activeUsersError &&
 						activeUsers &&
 						activeUsers.map(user => (
-							<Marker
-								key={user.userId}
-								position={[user.latitude, user.longitude]}
-								icon={L.divIcon({
-									className: 'active-user-marker',
-									html: `
-										<div style="display: flex; flex-direction: column; align-items: center;">
-										<div style="width: 45px; height: 45px; border-radius: 50%; overflow: hidden; border: 2px solid white; background-image: url('/pwa-192.png'); background-size: cover;">
-                        <img 
-                          src="${user.avatarUrl}" 
-                          alt="${user.username}" 
-                          style="width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s;"
-                          onload="this.style.opacity = 1;"
-                          onerror="this.style.display = 'none';"
-                        >
-                    </div>
-											<div style="background-color: rgba(255, 255, 255, 0.7); padding: 2px 4px; border-radius: 3px; margin-top: 2px; font-size: 10px;">
-												${user.username || 'Пользователь'}
-												${user.averageSpeed.toFixed(0)} км/ч
-											</div>
-										</div>
-									`,
-									iconSize: [40, 50],
-									iconAnchor: [20, 50],
-								})}
-							>
-								<Popup>
-									Активный пользователь: {user.username || 'Неизвестный'}
-									<br />
-									Последняя активность:{' '}
-									{new Date(user.lastActive * 1000).toLocaleString()}
-								</Popup>
-							</Marker>
+							<OptimizedActiveUserMarker key={user.userId} user={user} />
 						))}
 
 					<MapEvents />
