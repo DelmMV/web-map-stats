@@ -1,0 +1,215 @@
+/* Базовые CSS переменные для тем */
+
+:root {
+	/* Светлая тема (по умолчанию) */
+	--bg-primary: #ffffff;
+	--bg-secondary: #f8fafc;
+	--bg-tertiary: #f1f5f9;
+	--bg-card: #ffffff;
+	--bg-overlay: rgba(0, 0, 0, 0.1);
+
+	--text-primary: #1e293b;
+	--text-secondary: #64748b;
+	--text-tertiary: #94a3b8;
+	--text-inverse: #ffffff;
+
+	--border-primary: #e2e8f0;
+	--border-secondary: #cbd5e1;
+	--border-focus: #3b82f6;
+
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+		0 2px 4px -1px rgba(0, 0, 0, 0.06);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+		0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+	/* Акцентные цвета */
+	--accent-primary: #3b82f6;
+	--accent-secondary: #10b981;
+	--accent-warning: #f59e0b;
+	--accent-danger: #ef4444;
+
+	/* Цвета маркеров для светлой темы */
+	--marker-charging: #34d399;
+	--marker-charging24: #10b981;
+	--marker-chargingAuto: #06b6d4;
+	--marker-interesting: #f59e0b;
+	--marker-danger: #ef4444;
+	--marker-chat: #8b5cf6;
+	--marker-workshop: #6b7280;
+	--marker-user: #4285f4;
+
+	/* Цвета для кластеров */
+	--cluster-small: #4285f4;
+	--cluster-medium: #34a853;
+	--cluster-large: #ea4335;
+	--cluster-xlarge: #9333ea;
+}
+
+/* Темная тема */
+[data-theme='dark'] {
+	--bg-primary: #0f172a;
+	--bg-secondary: #1e293b;
+	--bg-tertiary: #334155;
+	--bg-card: #1e293b;
+	--bg-overlay: rgba(0, 0, 0, 0.3);
+
+	--text-primary: #f8fafc;
+	--text-secondary: #cbd5e1;
+	--text-tertiary: #94a3b8;
+	--text-inverse: #0f172a;
+
+	--border-primary: #334155;
+	--border-secondary: #475569;
+	--border-focus: #60a5fa;
+
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3),
+		0 2px 4px -1px rgba(0, 0, 0, 0.2);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3),
+		0 4px 6px -2px rgba(0, 0, 0, 0.2);
+
+	/* Акцентные цвета для темной темы */
+	--accent-primary: #60a5fa;
+	--accent-secondary: #22c55e;
+	--accent-warning: #fbbf24;
+	--accent-danger: #f87171;
+
+	/* Цвета маркеров для темной темы */
+	--marker-charging: #4ade80;
+	--marker-charging24: #22c55e;
+	--marker-chargingAuto: #38bdf8;
+	--marker-interesting: #fbbf24;
+	--marker-danger: #f87171;
+	--marker-chat: #a78bfa;
+	--marker-workshop: #9ca3af;
+	--marker-user: #60a5fa;
+
+	/* Цвета для кластеров в темной теме */
+	--cluster-small: #60a5fa;
+	--cluster-medium: #22c55e;
+	--cluster-large: #f87171;
+	--cluster-xlarge: #a78bfa;
+}
+
+/* Переменные из Telegram (если доступны) */
+[data-theme='light'] {
+	--bg-primary: var(--tg-bg-color, #ffffff);
+	--bg-secondary: var(--tg-secondary-bg-color, #f8fafc);
+	--text-primary: var(--tg-text-color, #1e293b);
+	--text-secondary: var(--tg-hint-color, #64748b);
+	--accent-primary: var(--tg-link-color, #3b82f6);
+	--accent-button: var(--tg-button-color, #3b82f6);
+	--text-button: var(--tg-button-text-color, #ffffff);
+}
+
+[data-theme='dark'] {
+	--bg-primary: var(--tg-bg-color, #0f172a);
+	--bg-secondary: var(--tg-secondary-bg-color, #1e293b);
+	--text-primary: var(--tg-text-color, #f8fafc);
+	--text-secondary: var(--tg-hint-color, #cbd5e1);
+	--accent-primary: var(--tg-link-color, #60a5fa);
+	--accent-button: var(--tg-button-color, #60a5fa);
+	--text-button: var(--tg-button-text-color, #0f172a);
+}
+
+/* Плавные переходы между темами */
+* {
+	transition: background-color 0.2s ease, color 0.2s ease,
+		border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Базовые стили для body */
+body {
+	background-color: var(--bg-primary);
+	color: var(--text-primary);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+		'Helvetica', 'Arial', sans-serif;
+}
+
+/* Стили для карточек */
+.card {
+	background-color: var(--bg-card);
+	border: 1px solid var(--border-primary);
+	box-shadow: var(--shadow-sm);
+}
+
+.card:hover {
+	box-shadow: var(--shadow-md);
+}
+
+/* Стили для кнопок */
+.btn-primary {
+	background-color: var(--accent-button, var(--accent-primary));
+	color: var(--text-button, var(--text-inverse));
+	border: 1px solid var(--accent-button, var(--accent-primary));
+}
+
+.btn-secondary {
+	background-color: var(--bg-secondary);
+	color: var(--text-primary);
+	border: 1px solid var(--border-primary);
+}
+
+.btn-secondary:hover {
+	background-color: var(--bg-tertiary);
+}
+
+/* Стили для инпутов */
+.input {
+	background-color: var(--bg-primary);
+	color: var(--text-primary);
+	border: 1px solid var(--border-primary);
+}
+
+.input:focus {
+	border-color: var(--border-focus);
+	box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme='dark'] .input:focus {
+	box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+/* Стили для навигации */
+.nav {
+	background-color: var(--bg-card);
+	border-top: 1px solid var(--border-primary);
+	box-shadow: var(--shadow-lg);
+}
+
+/* Стили для модальных окон */
+.modal-overlay {
+	background-color: var(--bg-overlay);
+}
+
+.modal-content {
+	background-color: var(--bg-card);
+	border: 1px solid var(--border-primary);
+	box-shadow: var(--shadow-lg);
+}
+
+/* Стили для скроллбара */
+::-webkit-scrollbar {
+	width: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--border-secondary);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-tertiary);
+}
+
+/* Анимация для смены темы */
+@media (prefers-reduced-motion: no-preference) {
+	html {
+		transition: color-scheme 0.2s ease;
+	}
+}

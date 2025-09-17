@@ -124,11 +124,21 @@ function formatCount(count) {
 }
 
 /**
- * Возвращает цвет для типа маркера
+ * Возвращает цвет для типа маркера с поддержкой CSS переменных
  * @param {string} type - Тип маркера
  * @returns {string} HEX цвет
  */
 function getTypeColor(type) {
+	// Пытаемся получить цвет из CSS переменных
+	if (typeof window !== 'undefined') {
+		const cssVar = `--marker-${type}`
+		const color = getComputedStyle(document.documentElement)
+			.getPropertyValue(cssVar)
+			.trim()
+		if (color) return color
+	}
+
+	// Fallback цвета
 	const typeColors = {
 		charging: '#34D399',
 		charging24: '#10B981',

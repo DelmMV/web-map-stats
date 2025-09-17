@@ -232,10 +232,28 @@
 	}
 }
 
-/* Темная тема */
+/* Адаптивные стили для темной темы */
+[data-theme='dark'] .marker-pin {
+	border-color: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme='dark'] .marker-shadow {
+	background: radial-gradient(
+		ellipse at center,
+		rgba(255, 255, 255, 0.1) 0%,
+		transparent 70%
+	);
+}
+
+/* Улучшенная видимость в темной теме */
+[data-theme='dark'] .marker-icon svg {
+	filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+/* Fallback для системной темы */
 @media (prefers-color-scheme: dark) {
 	.marker-pin {
-		border-color: rgba(255, 255, 255, 0.8);
+		border-color: rgba(255, 255, 255, 0.6);
 	}
 
 	.marker-shadow {
