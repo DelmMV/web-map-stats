@@ -9,6 +9,38 @@
 	-moz-osx-font-smoothing: grayscale;
 }
 
+/* Стили для погодных компонентов */
+.weather-marker {
+	background: none !important;
+	border: none !important;
+	cursor: pointer;
+}
+
+.weather-marker div {
+	transition: all 0.15s ease-in-out;
+}
+
+.weather-marker:hover div {
+	transform: scale(1.08);
+	box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Анимация появления погодных маркеров */
+.weather-marker {
+	animation: weatherMarkerFadeIn 0.3s ease-out;
+}
+
+@keyframes weatherMarkerFadeIn {
+	from {
+		opacity: 0;
+		transform: scale(0.8);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
 .leaflet-popup-content-wrapper {
 	padding: 7px;
 }

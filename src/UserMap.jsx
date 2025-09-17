@@ -27,7 +27,7 @@ import React, {
 	useRef,
 	useState,
 } from 'react'
-import { FaLocationArrow, FaUsers } from 'react-icons/fa'
+import { FaCloudSun, FaLocationArrow, FaUsers } from 'react-icons/fa'
 import { HiLocationMarker } from 'react-icons/hi'
 import {
 	LayersControl,
@@ -51,6 +51,8 @@ import {
 import HeatmapLayer from './components/HeatmapLayer'
 import MarkerClusterGroup from './components/MarkerClusterGroup'
 import MarkerFilterControl from './components/MarkerFilterControl'
+import WeatherLayer from './components/WeatherLayer'
+import WeatherWidget from './components/WeatherWidget'
 import routesReducer from './hooks/routesReducer'
 import { useTelegramUser } from './hooks/useTelegramUser'
 
@@ -262,6 +264,14 @@ const UserMap = ({ userId, admins }) => {
 
 	const [showActiveUsers, setShowActiveUsers] = useState(false)
 
+	// Состояния для погоды
+	const [showWeather, setShowWeather] = useState(() => {
+		return JSON.parse(localStorage.getItem('showWeather') || 'false')
+	})
+	const [showWeatherWidget, setShowWeatherWidget] = useState(() => {
+		return JSON.parse(localStorage.getItem('showWeatherWidget') || 'true')
+	})
+
 	const [newStation, setNewStation] = useState(null)
 	const [isAddingStation, setIsAddingStation] = useState(false)
 	const [editingStation, setEditingStation] = useState(null)
@@ -327,6 +337,22 @@ const UserMap = ({ userId, admins }) => {
 
 	const toggleActiveUsers = useCallback(() => {
 		setShowActiveUsers(prev => !prev)
+	}, [])
+
+	const toggleWeather = useCallback(() => {
+		setShowWeather(prev => {
+			const newValue = !prev
+			localStorage.setItem('showWeather', JSON.stringify(newValue))
+			return newValue
+		})
+	}, [])
+
+	const toggleWeatherWidget = useCallback(() => {
+		setShowWeatherWidget(prev => {
+			const newValue = !prev
+			localStorage.setItem('showWeatherWidget', JSON.stringify(newValue))
+			return newValue
+		})
 	}, [])
 
 	// Инициализируем состояние фильтров из localStorage
@@ -822,6 +848,141 @@ const UserMap = ({ userId, admins }) => {
 	const chatIcon = useMemo(() => customChatIcon(), [])
 	const workshopIcon = useMemo(() => customIconSvgWorkshop(), [])
 
+	// Локации для отображения погоды (районы и пригороды Санкт-Петербурга)
+	const weatherLocations = useMemo(
+		() => [
+			// Пригороды
+			{
+				id: 'murino',
+				lat: 60.057,
+				lon: 30.4306,
+				name: 'Мурино',
+			},
+			{
+				id: 'pargolobo',
+				lat: 60.1089,
+				lon: 30.2958,
+				name: 'Парголово',
+			},
+			{
+				id: 'sestroretsk',
+				lat: 60.1004,
+				lon: 29.9608,
+				name: 'Сестрорецк',
+			},
+			{
+				id: 'shushary',
+				lat: 59.7528,
+				lon: 30.3281,
+				name: 'Шушары',
+			},
+			{
+				id: 'kolpino',
+				lat: 59.7506,
+				lon: 30.5931,
+				name: 'Колпино',
+			},
+			{
+				id: 'pushkin',
+				lat: 59.7142,
+				lon: 30.3936,
+				name: 'Пушкин',
+			},
+			{
+				id: 'petergof',
+				lat: 59.8842,
+				lon: 29.9089,
+				name: 'Петергоф',
+			},
+			{
+				id: 'kronshtadt',
+				lat: 59.9911,
+				lon: 29.7658,
+				name: 'Кронштадт',
+			},
+			{
+				id: 'kudrovo',
+				lat: 59.9136,
+				lon: 30.5119,
+				name: 'Кудрово',
+			},
+			{
+				//60.024647, 30.645621
+				id: 'vsevolozhsk',
+				lat: 60.0246,
+				lon: 30.6456,
+				name: 'Всеволожск',
+			},
+			// Районы Санкт-Петербурга
+			{
+				id: 'kalininskiy',
+				lat: 59.9965,
+				lon: 30.4006,
+				name: 'Калининский район',
+			},
+			{
+				id: 'primorskiy',
+				lat: 60.0081,
+				lon: 30.2084,
+				name: 'Приморский район',
+			},
+			{
+				//59.912381, 30.297154
+				id: 'admiralteyskiy',
+				lat: 59.9123,
+				lon: 30.2971,
+				name: 'Адмиралтейский район',
+			},
+			{
+				//59.941562, 30.247963
+				id: 'vasileostrovskiy',
+				lat: 59.9415,
+				lon: 30.2479,
+				name: 'Василеостровский район',
+			},
+			{
+				id: 'petrogradskiy',
+				lat: 59.9606,
+				lon: 30.3084,
+				name: 'Петроградский район',
+			},
+			{
+				id: 'nevskiy',
+				lat: 59.9278,
+				lon: 30.3609,
+				name: 'Невский район',
+			},
+			{
+				//60.032393, 30.330178
+				id: 'vyborgskiy',
+				lat: 60.0323,
+				lon: 30.3301,
+				name: 'Выборгский район',
+			},
+			{
+				id: 'krasnogvardeyskiy',
+				lat: 59.9561,
+				lon: 30.4606,
+				name: 'Красногвардейский район',
+			},
+			{
+				//59.870031, 30.390721
+				id: 'frunzenskiy',
+				lat: 59.8700,
+				lon: 30.3907,
+				name: 'Фрунзенский район',
+			},
+			{
+				//59.876430, 30.257595
+				id: 'kirovskiy',
+				lat: 59.8764,
+				lon: 30.2575,
+				name: 'Кировский район',
+			},
+		],
+		[]
+	)
+
 	const [workshops, setWorkshops] = useState([])
 
 	// Добавляем загрузку мастерских
@@ -1156,6 +1317,14 @@ const UserMap = ({ userId, admins }) => {
 							<OptimizedActiveUserMarker key={user.userId} user={user} />
 						))}
 
+					{showWeather && (
+						<WeatherLayer
+							locations={weatherLocations}
+							isVisible={showWeather}
+							mapBounds={mapBounds}
+						/>
+					)}
+
 					<MapEvents />
 					{showChargingStations && (
 						<MarkerFilterControl
@@ -1193,6 +1362,16 @@ const UserMap = ({ userId, admins }) => {
 						</Box>
 					)}
 				</MapContainer>
+
+				{/* Погодный виджет */}
+				{showWeatherWidget && userPosition && (
+					<WeatherWidget
+						lat={userPosition[0]}
+						lon={userPosition[1]}
+						isVisible={showWeatherWidget}
+						position='top-right'
+					/>
+				)}
 			</Box>
 
 			{isAddingStation && (
@@ -1234,6 +1413,22 @@ const UserMap = ({ userId, admins }) => {
 					borderWidth={2}
 					width='30px'
 					padding='0'
+				/>
+			</Box>
+
+			<Box position='absolute' top='330px' left='11px' zIndex={1000}>
+				<IconButton
+					onClick={toggleWeather}
+					variant='solid'
+					icon={<FaCloudSun />}
+					colorScheme={showWeather ? 'blue' : 'gray'}
+					size='md'
+					borderRadius={3}
+					borderColor='gray'
+					borderWidth={2}
+					width='30px'
+					padding='0'
+					aria-label='Показать погоду'
 				/>
 			</Box>
 
