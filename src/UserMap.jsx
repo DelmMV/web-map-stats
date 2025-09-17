@@ -38,19 +38,21 @@ import {
 	TileLayer,
 	useMapEvents,
 } from 'react-leaflet'
-import {
-	customAutoChargerIcon,
-	customChatIcon,
-	customDangerIcon,
-	customIconSvgCharger,
-	customIconSvgCharger24,
-	customIconSvgRange,
-	customIconSvgWorkshop,
-	customInterestingIcon,
-} from './components/CustomIcon'
 import HeatmapLayer from './components/HeatmapLayer'
-import MarkerClusterGroup from './components/MarkerClusterGroup'
 import MarkerFilterControl from './components/MarkerFilterControl'
+import ModernMarkerClusterGroup from './components/ModernMarkerCluster'
+import {
+	createCharging24Marker,
+	createChargingAutoMarker,
+	createChargingMarker,
+	createChatMarker,
+	createDangerMarker,
+	createInterestingMarker,
+	createRouteEndMarker,
+	createRouteStartMarker,
+	createUserMarker,
+	createWorkshopMarker,
+} from './components/ModernMarkerIcon'
 import WeatherLayer from './components/WeatherLayer'
 import WeatherWidget from './components/WeatherWidget'
 import routesReducer from './hooks/routesReducer'
@@ -838,15 +840,8 @@ const UserMap = ({ userId, admins }) => {
 		}, 0)
 	}, [activeSessions, routesState.distances])
 
-	const startIcon = useMemo(() => customIconSvgRange('blue'), [])
-	const endIcon = useMemo(() => customIconSvgRange('red'), [])
-	const chargingStationIcon = useMemo(() => customIconSvgCharger(), [])
-	const chargingStationIcon24 = useMemo(() => customIconSvgCharger24(), [])
-	const chargingStationAutoIcon = useMemo(() => customAutoChargerIcon(), [])
-	const interestingIcon = useMemo(() => customInterestingIcon(), [])
-	const dangerIcon = useMemo(() => customDangerIcon(), [])
-	const chatIcon = useMemo(() => customChatIcon(), [])
-	const workshopIcon = useMemo(() => customIconSvgWorkshop(), [])
+	const startIcon = useMemo(() => createRouteStartMarker('#4285f4'), [])
+	const endIcon = useMemo(() => createRouteEndMarker('#EA4335'), [])
 
 	// Локации для отображения погоды (районы и пригороды Санкт-Петербурга)
 	const weatherLocations = useMemo(
@@ -968,7 +963,7 @@ const UserMap = ({ userId, admins }) => {
 			{
 				//59.870031, 30.390721
 				id: 'frunzenskiy',
-				lat: 59.8700,
+				lat: 59.87,
 				lon: 30.3907,
 				name: 'Фрунзенский район',
 			},
@@ -1007,13 +1002,13 @@ const UserMap = ({ userId, admins }) => {
 	// Сначала создаем мемоизированные иконки
 	const icons = useMemo(
 		() => ({
-			charging: customIconSvgCharger(),
-			charging24: customIconSvgCharger24(),
-			chargingAuto: customAutoChargerIcon(),
-			interesting: customInterestingIcon(),
-			danger: customDangerIcon(),
-			chat: customChatIcon(),
-			workshop: customIconSvgWorkshop(),
+			charging: createChargingMarker(),
+			charging24: createCharging24Marker(),
+			chargingAuto: createChargingAutoMarker(),
+			interesting: createInterestingMarker(),
+			danger: createDangerMarker(),
+			chat: createChatMarker(),
+			workshop: createWorkshopMarker(),
 		}),
 		[]
 	)
@@ -1127,12 +1122,7 @@ const UserMap = ({ userId, admins }) => {
 		return null
 	}
 
-	const userIcon = L.divIcon({
-		className: 'user-marker',
-		html: '<div style="background-color: blue; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>',
-		iconSize: [14, 14],
-		iconAnchor: [7, 7],
-	})
+	const userIcon = createUserMarker()
 
 	return (
 		<Box
@@ -1247,7 +1237,7 @@ const UserMap = ({ userId, admins }) => {
 					</LayersControl>
 
 					{showChargingStations && (
-						<MarkerClusterGroup
+						<ModernMarkerClusterGroup
 							chunkedLoading={true}
 							spiderfyOnMaxZoom={true}
 							removeOutsideVisibleBounds={true}
@@ -1258,7 +1248,7 @@ const UserMap = ({ userId, admins }) => {
 							{visibleMarkers.map(marker => (
 								<OptimizedMarker key={marker._id} marker={marker} />
 							))}
-						</MarkerClusterGroup>
+						</ModernMarkerClusterGroup>
 					)}
 
 					{Object.keys(routesState.data).map((sessionId, idx) => {

@@ -2,8 +2,9 @@ import { ChakraProvider } from '@chakra-ui/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
-import { useEffect, useState } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
+import './components/ModernClusterStyles.css'
+import './components/ModernMarkerStyles.css'
 import TelegramLoginWidget from './components/TelegramLoginWidget'
 import { useTelegramUser } from './hooks/useTelegramUser'
 import './index.css'
@@ -29,12 +30,13 @@ function App() {
 
 	const handleAuth = authUser => {
 		if (authUser && authUser.id) {
-			setUser({
-				id: authUser.id,
-				firstName: authUser.first_name,
-				lastName: authUser.last_name,
-				username: authUser.username,
-			})
+			// setUser({
+			// 	id: authUser.id,
+			// 	firstName: authUser.first_name,
+			// 	lastName: authUser.last_name,
+			// 	username: authUser.username,
+			// })
+			console.log('Auth received:', authUser)
 		} else {
 			console.error('Invalid user data received from Telegram widget')
 		}

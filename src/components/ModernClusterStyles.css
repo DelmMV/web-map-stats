@@ -1,0 +1,291 @@
+/* Современные стили для кластеров маркеров */
+
+.modern-cluster-container {
+	background: none !important;
+	border: none !important;
+	pointer-events: auto;
+}
+
+.modern-cluster {
+	position: relative;
+	cursor: pointer;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	transform-origin: center;
+}
+
+.cluster-background {
+	position: relative;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.8);
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cluster-content {
+	position: relative;
+	z-index: 10;
+	text-align: center;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+		sans-serif;
+	pointer-events: none;
+}
+
+.cluster-count {
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.cluster-label {
+	font-size: 9px;
+	font-weight: 500;
+	opacity: 0.8;
+	margin-top: 1px;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.cluster-segments {
+	border-radius: 50%;
+	overflow: hidden;
+}
+
+.cluster-shadow {
+	position: absolute;
+	bottom: -3px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 60%;
+	height: 20%;
+	background: radial-gradient(
+		ellipse at center,
+		rgba(0, 0, 0, 0.2) 0%,
+		transparent 70%
+	);
+	border-radius: 50%;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover эффекты */
+.modern-cluster:hover,
+.modern-cluster.cluster-hovered {
+	transform: scale(1.1) translateY(-2px);
+	z-index: 1000;
+}
+
+.modern-cluster:hover .cluster-background,
+.modern-cluster.cluster-hovered .cluster-background {
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15);
+	transform: scale(1.05);
+}
+
+.modern-cluster:hover .cluster-shadow,
+.modern-cluster.cluster-hovered .cluster-shadow {
+	width: 80%;
+	opacity: 0.5;
+}
+
+/* Активное состояние (при клике) */
+.modern-cluster:active,
+.modern-cluster.cluster-clicked {
+	transform: scale(1.05) translateY(-1px);
+}
+
+.modern-cluster:active .cluster-background,
+.modern-cluster.cluster-clicked .cluster-background {
+	transform: scale(0.95);
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Анимация появления кластера */
+.modern-cluster {
+	animation: clusterAppear 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes clusterAppear {
+	0% {
+		transform: scale(0.3);
+		opacity: 0;
+	}
+	50% {
+		transform: scale(1.2);
+		opacity: 0.8;
+	}
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+/* Специальные стили для разных размеров кластеров */
+
+/* Маленькие кластеры */
+.modern-cluster[data-size='small'] .cluster-count {
+	font-size: 10px;
+}
+
+.modern-cluster[data-size='small'] .cluster-background {
+	border-width: 1px;
+}
+
+/* Средние кластеры */
+.modern-cluster[data-size='medium'] .cluster-count {
+	font-size: 11px;
+}
+
+.modern-cluster[data-size='medium'] .cluster-background {
+	border-width: 1px;
+}
+
+/* Большие кластеры */
+.modern-cluster[data-size='large'] .cluster-count {
+	font-size: 13px;
+}
+
+.modern-cluster[data-size='large'] .cluster-background {
+	border-width: 2px;
+}
+
+/* Очень большие кластеры */
+.modern-cluster[data-size='xlarge'] .cluster-count {
+	font-size: 14px;
+}
+
+.modern-cluster[data-size='xlarge'] .cluster-background {
+	border-width: 2px;
+}
+
+/* Пульсирующий эффект для больших кластеров */
+.modern-cluster[data-count] .cluster-background::before {
+	content: '';
+	position: absolute;
+	top: -3px;
+	left: -3px;
+	right: -3px;
+	bottom: -3px;
+	border-radius: 50%;
+	background: inherit;
+	opacity: 0.3;
+	animation: clusterPulse 3s ease-in-out infinite;
+	z-index: -1;
+}
+
+@keyframes clusterPulse {
+	0%,
+	100% {
+		transform: scale(1);
+		opacity: 0.3;
+	}
+	50% {
+		transform: scale(1.2);
+		opacity: 0.1;
+	}
+}
+
+/* Отключаем пульсацию для маленьких кластеров */
+.modern-cluster[data-size='small'] .cluster-background::before {
+	display: none;
+}
+
+/* Спец эффекты для интерактивности */
+.modern-cluster[data-size='large'] .cluster-background,
+.modern-cluster[data-size='xlarge'] .cluster-background {
+	background: linear-gradient(
+		135deg,
+		var(--cluster-color, #4285f4) 0%,
+		color-mix(in srgb, var(--cluster-color, #4285f4) 80%, black) 100%
+	) !important;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+	.cluster-count {
+		font-size: 10px;
+	}
+
+	.cluster-label {
+		font-size: 7px;
+	}
+
+	.modern-cluster[data-size='medium'] .cluster-count {
+		font-size: 10px;
+	}
+
+	.modern-cluster[data-size='large'] .cluster-count {
+		font-size: 11px;
+	}
+
+	.modern-cluster[data-size='xlarge'] .cluster-count {
+		font-size: 12px;
+	}
+}
+
+/* Высокая плотность пикселей */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	.cluster-background {
+		image-rendering: -webkit-optimize-contrast;
+		image-rendering: crisp-edges;
+	}
+}
+
+/* Темная тема */
+@media (prefers-color-scheme: dark) {
+	.cluster-background {
+		border-color: rgba(255, 255, 255, 0.7);
+	}
+
+	.cluster-shadow {
+		background: radial-gradient(
+			ellipse at center,
+			rgba(255, 255, 255, 0.1) 0%,
+			transparent 70%
+		);
+	}
+}
+
+/* Состояние фокуса для доступности */
+.modern-cluster:focus {
+	outline: 2px solid #4285f4;
+	outline-offset: 3px;
+}
+
+/* Отключение анимаций при настройке reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	.modern-cluster {
+		animation: none;
+		transition: none;
+	}
+
+	.cluster-background::before {
+		animation: none;
+	}
+
+	.cluster-background,
+	.cluster-shadow {
+		transition: none;
+	}
+}
+
+/* Исправления для совместимости с Leaflet */
+.leaflet-marker-icon.modern-cluster-container {
+	background-color: transparent !important;
+	border: none !important;
+	border-radius: 0 !important;
+}
+
+/* Стили для spiderfy (раскрытые маркеры) */
+.leaflet-cluster-anim .leaflet-marker-icon,
+.leaflet-cluster-anim .leaflet-marker-shadow {
+	transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+/* Линии соединения при spiderfy */
+.marker-cluster-spiderfy-link {
+	stroke: #4285f4;
+	stroke-width: 2;
+	stroke-opacity: 0.5;
+	fill: none;
+}
