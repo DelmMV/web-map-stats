@@ -183,9 +183,44 @@ const PersistentUserMarkers = memo(
 	({ users, admins, map }) => {
 		const markersRef = useRef(new Map()) // Хранилище маркеров
 		const userDataRef = useRef(new Map()) // Кеш данных пользователей
+		const clustersRef = useRef(new Map()) // Хранилище кластеров пользователей
+		const updateTimeoutRef = useRef(null) // Для дебаунсинга обновлений
 
-		// Функция создания HTML для маркера
-		const createMarkerHTML = useCallback(
+		// Функция для группировки пользователей по близости
+		const groupUsersByLocation = useCallback(users => {
+			const groups = []
+			const processed = new Set()
+			const CLUSTER_DISTANCE = 0.0005 // ~50 метров
+
+			users.forEach((user, index) => {
+				if (processed.has(index)) return
+
+				const group = [user]
+				processed.add(index)
+
+				// Ищем других пользователей в радиусе
+				users.forEach((otherUser, otherIndex) => {
+					if (processed.has(otherIndex) || index === otherIndex) return
+
+					const distance = Math.sqrt(
+						Math.pow(user.latitude - otherUser.latitude, 2) +
+							Math.pow(user.longitude - otherUser.longitude, 2)
+					)
+
+					if (distance <= CLUSTER_DISTANCE) {
+						group.push(otherUser)
+						processed.add(otherIndex)
+					}
+				})
+
+				groups.push(group)
+			})
+
+			return groups
+		}, [])
+
+		// Функция создания HTML для одного пользователя
+		const createUserMarkerHTML = useCallback(
 			(user, isUserAdmin, isRecentlyActive) => {
 				const labelClasses = [
 					'user-info-label',
@@ -196,7 +231,7 @@ const PersistentUserMarkers = memo(
 
 				return `
 			<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
-				<div class="avatar-container" style="position: relative; width: 55px; height: 55px;">
+				<div class="avatar-container" style="position: relative; width: 45px; height: 45px;">
 					${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
 					<img 
 						src="${user.avatarUrl || '/pwa-192.png'}" 
@@ -204,7 +239,7 @@ const PersistentUserMarkers = memo(
 						class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
 					isRecentlyActive ? 'user-marker-active' : ''
 				} user-avatar"
-						style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background-image: url('/pwa-192.png'); background-size: cover;"
+						style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background-image: url('/pwa-192.png'); background-size: cover;"
 						onerror="this.style.opacity = 0;"
 					>
 				</div>
@@ -219,183 +254,521 @@ const PersistentUserMarkers = memo(
 			[]
 		)
 
-		// Функция для селективного обновления содержимого маркера
-		const updateMarkerContent = useCallback(
-			(marker, user, isUserAdmin, isRecentlyActive, cachedData) => {
-				const markerElement = marker.getElement()
-				if (!markerElement) return
+		// Функция создания HTML для группы пользователей
+		const createUserGroupMarkerHTML = useCallback(
+			userGroup => {
+				const count = userGroup.length
+				const hasAdmins = userGroup.some(
+					user => admins && admins.includes(user.userId)
+				)
 
-				// Обновляем только изменившиеся части
+				// Создаем компактную версию с ротацией аватаров
+				const groupId = `group_${userGroup.map(u => u.userId).join('_')}`
 
-				// 1. Обновляем badge Staff (если статус админа изменился)
-				if (cachedData.isUserAdmin !== isUserAdmin) {
-					const badgeContainer =
-						markerElement.querySelector('.avatar-container')
-					if (badgeContainer) {
-						const existingBadge = badgeContainer.querySelector('.staff-badge')
-						if (isUserAdmin && !existingBadge) {
-							// Добавляем badge
-							const badge = document.createElement('div')
-							badge.className = 'staff-badge'
-							badge.textContent = 'STAFF'
-							badgeContainer.appendChild(badge)
-						} else if (!isUserAdmin && existingBadge) {
-							// Удаляем badge
-							existingBadge.remove()
-						}
-					}
-				}
+				// Определяем стили в зависимости от того, есть ли админы в группе
+				const borderStyle = hasAdmins
+					? 'linear-gradient(135deg, #fed7aa, #fbd38d, #ed8936)'
+					: 'linear-gradient(135deg, #4299e1, #63b3ed)'
 
-				// 2. Обновляем классы аватарки (если изменился статус)
-				const avatarImg = markerElement.querySelector('.user-avatar')
-				if (
-					avatarImg &&
-					(cachedData.isUserAdmin !== isUserAdmin ||
-						cachedData.isRecentlyActive !== isRecentlyActive)
-				) {
-					const newClasses = `${
-						isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'
-					} ${isRecentlyActive ? 'user-marker-active' : ''} user-avatar`
-					avatarImg.className = newClasses
-				}
+				// Создаем HTML для всех аватаров
+				const avatarsHTML = userGroup
+					.map((user, index) => {
+						const isUserAdmin = admins && admins.includes(user.userId)
+						const isUserActive = Date.now() - user.lastActive * 1000 < 300000
 
-				// 3. Обновляем URL аватарки (только если изменился)
-				if (avatarImg && cachedData.avatarUrl !== user.avatarUrl) {
-					avatarImg.src = user.avatarUrl || '/pwa-192.png'
-				}
+						// Каждый пользователь использует свой индивидуальный стиль
+						const userBorderStyle = isUserAdmin
+							? 'linear-gradient(135deg, #fed7aa, #fbd38d, #ed8936)'
+							: 'linear-gradient(135deg, #4299e1, #63b3ed)'
 
-				// 4. Обновляем имя пользователя (только если изменилось)
-				const usernameElement = markerElement.querySelector('.username')
-				if (usernameElement && cachedData.username !== user.username) {
-					usernameElement.textContent = user.username || 'Пользователь'
-				}
+						return `
+						<div class="user-cluster-avatar-wrapper" style="position: absolute; top: 0; left: 0; width: 50px; height: 50px;
+								 opacity: ${index === 0 ? '1' : '0'};
+								 transform: ${
+										index === 0
+											? 'scale(1) rotateY(0deg)'
+											: 'scale(0.8) rotateY(180deg)'
+									};
+								 transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+								 z-index: ${index === 0 ? '10' : '1'};" data-index="${index}">
+							${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
+							<img 
+								src="${user.avatarUrl || '/pwa-192.png'}" 
+								alt="${user.username}" 
+								class="user-cluster-avatar-item ${
+									isUserAdmin ? 'admin-cluster' : 'regular-cluster'
+								} ${isUserActive ? 'active-cluster' : ''}"
+								style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; 
+									   border: 6px solid transparent;
+									   background: linear-gradient(white, white) padding-box, ${userBorderStyle} border-box;
+									   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);"
+								onerror="this.style.opacity = 0;"
+							>
+						</div>
+					`
+					})
+					.join('')
 
-				// 5. Обновляем скорость (только если изменилась)
-				const speedElement = markerElement.querySelector('.speed')
-				if (
-					speedElement &&
-					Math.abs(cachedData.averageSpeed - user.averageSpeed) > 1
-				) {
-					speedElement.textContent = `${user.averageSpeed.toFixed(0)} км/ч`
-				}
-
-				// 6. Обновляем класс label (если изменился статус админа)
-				const labelElement = markerElement.querySelector('.user-info-label')
-				if (labelElement && cachedData.isUserAdmin !== isUserAdmin) {
-					const newLabelClasses = [
-						'user-info-label',
-						isUserAdmin ? 'admin-label' : '',
-					]
-						.filter(Boolean)
-						.join(' ')
-					labelElement.className = newLabelClasses
-				}
+				return `
+					<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
+						<div class="user-cluster-avatar-container" id="${groupId}" 
+							 style="position: relative; width: 50px; height: 50px;"
+							 data-group-size="${count}" data-current-index="0">
+							${avatarsHTML}
+							<div class="user-cluster-counter" style="position: absolute; top: -8px; left: -8px; 
+									 background: ${hasAdmins ? '#ed8936' : '#4299e1'}; color: white; 
+									 font-size: 12px; font-weight: bold; padding: 4px 6px; 
+									 border-radius: 12px; border: 2px solid white;
+									 box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); min-width: 20px; 
+									 text-align: center; line-height: 1; z-index: 15;">
+								${count}
+							</div>
+							<div class="avatar-rotation-indicator" style="position: absolute; bottom: -2px; left: 50%; 
+									 transform: translateX(-50%); width: 30px; height: 3px; 
+									 background: linear-gradient(90deg, ${
+											hasAdmins ? '#ed8936' : '#4299e1'
+										}, transparent);
+									 border-radius: 2px; opacity: 0.7; z-index: 5;
+									 animation: rotationProgress 5s linear infinite;">
+							</div>
+						</div>
+						<div class="user-cluster-label" style="background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 252, 0.95)); 
+								   backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 6px; 
+								   padding: 2px 6px; margin-top: 4px; font-size: 9px; font-weight: 600; color: #2d3748; 
+								   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); text-align: center; white-space: nowrap;">
+							<span style="color: ${hasAdmins ? '#ed8936' : '#4299e1'};">👥 ${count}</span>
+						</div>
+					</div>
+				`
 			},
-			[]
+			[admins]
 		)
 
-		// Эффект для управления маркерами
-		useEffect(() => {
+		// Функция для создания попапа с информацией о группе
+		const createGroupPopupContent = useCallback(
+			userGroup => {
+				const usersInfo = userGroup
+					.map(user => {
+						const isUserAdmin = admins && admins.includes(user.userId)
+						const isRecentlyActive =
+							Date.now() - user.lastActive * 1000 < 300000
+
+						return `
+						<div style="display: flex; align-items: center; padding: 4px 0; border-bottom: 1px solid #e2e8f0;">
+							<img src="${user.avatarUrl || '/pwa-192.png'}" 
+								 style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px; border: 1px solid #e2e8f0;">
+							<div style="flex: 1;">
+								<div style="font-weight: 600; color: ${isUserAdmin ? '#ed8936' : '#2d3748'};">
+									${isUserAdmin ? '👑 ' : ''}${user.username || 'Пользователь'}
+								</div>
+								<div style="font-size: 11px; color: #718096;">
+									Скорость: ${user.averageSpeed.toFixed(0)} км/ч
+									${isRecentlyActive ? ' • 🟢 Активен' : ''}
+								</div>
+							</div>
+						</div>
+					`
+					})
+					.join('')
+
+				return `
+					<div style="max-width: 250px; max-height: 300px; overflow-y: auto;">
+						<div style="font-weight: bold; margin-bottom: 8px; text-align: center; color: #2d3748;">
+							👥 Пользователи в этой области (${userGroup.length})
+						</div>
+						${usersInfo}
+					</div>
+				`
+			},
+			[admins]
+		)
+
+		// Дебаунсированная функция обновления маркеров
+		const updateMarkers = useCallback(() => {
 			if (!map || !users) return
 
 			const currentMarkers = markersRef.current
 			const currentUserData = userDataRef.current
-			const userIds = new Set(users.map(user => user.userId))
+			const currentClusters = clustersRef.current
 
-			// Удаляем маркеры пользователей, которых больше нет
+			// Группируем пользователей по близости
+			const userGroups = groupUsersByLocation(users)
+
+			// Создаем ключи для текущих групп
+			const currentGroupKeys = new Set()
+			const currentUserKeys = new Set()
+
+			userGroups.forEach((group, groupIndex) => {
+				if (group.length === 1) {
+					currentUserKeys.add(group[0].userId)
+				} else {
+					const groupKey = `group_${group
+						.map(u => u.userId)
+						.sort()
+						.join('_')}`
+					currentGroupKeys.add(groupKey)
+				}
+			})
+
+			// Удаляем устаревшие маркеры одиночных пользователей
 			for (const [userId, marker] of currentMarkers.entries()) {
-				if (!userIds.has(userId)) {
+				if (!currentUserKeys.has(userId)) {
 					map.removeLayer(marker)
 					currentMarkers.delete(userId)
 					currentUserData.delete(userId)
 				}
 			}
 
-			// Обновляем или создаем маркеры
-			users.forEach(user => {
-				const isUserAdmin = admins && admins.includes(user.userId)
-				const isRecentlyActive = Date.now() - user.lastActive * 1000 < 300000
+			// Удаляем устаревшие кластеры
+			for (const [clusterKey, marker] of currentClusters.entries()) {
+				if (!currentGroupKeys.has(clusterKey)) {
+					// Очищаем интервал ротации для удаляемого кластера
+					const containerElement = marker
+						.getElement()
+						?.querySelector('[data-rotation-interval]')
+					if (containerElement) {
+						const intervalId = containerElement.getAttribute(
+							'data-rotation-interval'
+						)
+						if (intervalId) {
+							clearInterval(parseInt(intervalId))
+						}
+					}
 
-				const existingMarker = currentMarkers.get(user.userId)
-				const cachedData = currentUserData.get(user.userId)
-
-				// Проверяем нужно ли обновление
-				const needsUpdate =
-					!cachedData ||
-					Math.abs(cachedData.latitude - user.latitude) > 0.0001 ||
-					Math.abs(cachedData.longitude - user.longitude) > 0.0001 ||
-					Math.abs(cachedData.averageSpeed - user.averageSpeed) > 1 ||
-					Math.abs(cachedData.lastActive - user.lastActive) > 60 ||
-					cachedData.username !== user.username ||
-					cachedData.avatarUrl !== user.avatarUrl ||
-					cachedData.isUserAdmin !== isUserAdmin
-
-				if (existingMarker && !needsUpdate) {
-					return // Маркер актуален, ничего не делаем
+					map.removeLayer(marker)
+					currentClusters.delete(clusterKey)
 				}
+			}
 
-				if (existingMarker) {
-					// Обновляем существующий маркер
-					const newLatLng = [user.latitude, user.longitude]
-					existingMarker.setLatLng(newLatLng)
-					updateMarkerContent(
-						existingMarker,
-						user,
+			userGroups.forEach((group, groupIndex) => {
+				if (group.length === 1) {
+					// Одиночный пользователь
+					const user = group[0]
+					const isUserAdmin = admins && admins.includes(user.userId)
+					const isRecentlyActive = Date.now() - user.lastActive * 1000 < 300000
+
+					const existingMarker = currentMarkers.get(user.userId)
+					const cachedData = currentUserData.get(user.userId)
+
+					// Проверяем нужно ли обновление
+					const needsUpdate =
+						!cachedData ||
+						Math.abs(cachedData.latitude - user.latitude) > 0.0001 ||
+						Math.abs(cachedData.longitude - user.longitude) > 0.0001 ||
+						cachedData.username !== user.username ||
+						cachedData.avatarUrl !== user.avatarUrl ||
+						cachedData.isUserAdmin !== isUserAdmin ||
+						Math.abs(cachedData.averageSpeed - user.averageSpeed) > 1
+
+					if (existingMarker && !needsUpdate) {
+						return // Маркер актуален, ничего не делаем
+					}
+
+					if (existingMarker) {
+						// Плавно обновляем позицию существующего маркера
+						const newLatLng = [user.latitude, user.longitude]
+						existingMarker.setLatLng(newLatLng)
+
+						// Обновляем попап если нужно
+						if (
+							cachedData &&
+							(cachedData.username !== user.username ||
+								Math.abs(cachedData.averageSpeed - user.averageSpeed) > 1)
+						) {
+							existingMarker.setPopupContent(`
+								${isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}${
+								user.username || 'Неизвестный'
+							}
+								<br />
+								Последняя активность: ${new Date(user.lastActive * 1000).toLocaleString()}
+								<br />
+								Средняя скорость: ${user.averageSpeed.toFixed(1)} км/ч
+							`)
+						}
+					} else {
+						// Создаем новый маркер
+						const markerHTML = createUserMarkerHTML(
+							user,
+							isUserAdmin,
+							isRecentlyActive
+						)
+						const icon = L.divIcon({
+							className: 'active-user-marker',
+							html: markerHTML,
+							iconSize: [60, 75],
+							iconAnchor: [30, 75],
+						})
+
+						const marker = L.marker([user.latitude, user.longitude], { icon })
+						marker.bindPopup(`
+							${isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}${
+							user.username || 'Неизвестный'
+						}
+							<br />
+							Последняя активность: ${new Date(user.lastActive * 1000).toLocaleString()}
+							<br />
+							Средняя скорость: ${user.averageSpeed.toFixed(1)} км/ч
+						`)
+
+						marker.addTo(map)
+						currentMarkers.set(user.userId, marker)
+					}
+
+					// Обновляем кеш данных
+					currentUserData.set(user.userId, {
+						...user,
 						isUserAdmin,
 						isRecentlyActive,
-						cachedData
-					)
-				} else {
-					// Создаем новый маркер
-					const markerHTML = createMarkerHTML(
-						user,
-						isUserAdmin,
-						isRecentlyActive
-					)
-					const icon = L.divIcon({
-						className: 'active-user-marker',
-						html: markerHTML,
-						iconSize: [80, 85],
-						iconAnchor: [40, 85],
 					})
+				} else {
+					// Группа пользователей
+					const groupKey = `group_${group
+						.map(u => u.userId)
+						.sort()
+						.join('_')}`
+					const centerLat =
+						group.reduce((sum, user) => sum + user.latitude, 0) / group.length
+					const centerLng =
+						group.reduce((sum, user) => sum + user.longitude, 0) / group.length
 
-					const marker = L.marker([user.latitude, user.longitude], { icon })
-					marker.bindPopup(`
-					${isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}${
-						user.username || 'Неизвестный'
+					const existingCluster = currentClusters.get(groupKey)
+
+					if (existingCluster) {
+						// Плавно обновляем позицию существующего кластера
+						const newLatLng = [centerLat, centerLng]
+						existingCluster.setLatLng(newLatLng)
+
+						// Обновляем попап с актуальными данными
+						existingCluster.setPopupContent(createGroupPopupContent(group))
+
+						// Проверяем нужно ли обновить HTML маркера (изменились пользователи)
+						const containerElement = document.getElementById(
+							`group_${group.map(u => u.userId).join('_')}`
+						)
+						if (containerElement) {
+							// Обновляем счетчик
+							const counter = containerElement.querySelector(
+								'.user-cluster-counter'
+							)
+							if (counter) {
+								counter.textContent = group.length
+							}
+
+							// Проверяем изменились ли аватары
+							const currentAvatars = containerElement.querySelectorAll(
+								'.user-cluster-avatar-wrapper'
+							)
+							if (currentAvatars.length !== group.length) {
+								// Количество изменилось - пересоздаем маркер
+								map.removeLayer(existingCluster)
+								currentClusters.delete(groupKey)
+
+								const markerHTML = createUserGroupMarkerHTML(group)
+								const icon = L.divIcon({
+									className: 'active-user-cluster',
+									html: markerHTML,
+									iconSize: [70, 80],
+									iconAnchor: [35, 80],
+								})
+
+								const newMarker = L.marker([centerLat, centerLng], { icon })
+								newMarker.bindPopup(createGroupPopupContent(group), {
+									maxWidth: 300,
+									autoPan: true,
+									closeOnClick: true,
+									autoClose: true,
+									closeOnEscapeKey: true,
+								})
+
+								newMarker.addTo(map)
+								currentClusters.set(groupKey, newMarker)
+
+								// Настраиваем ротацию для нового кластера
+								setTimeout(() => {
+									const groupId = `group_${group.map(u => u.userId).join('_')}`
+									const containerElement = document.getElementById(groupId)
+
+									if (containerElement && group.length > 1) {
+										let currentIndex = 0
+
+										const rotateAvatars = () => {
+											const avatarWrappers = containerElement.querySelectorAll(
+												'.user-cluster-avatar-wrapper'
+											)
+											if (avatarWrappers.length <= 1) return
+
+											// Скрываем текущий аватар
+											const currentWrapper = avatarWrappers[currentIndex]
+											if (currentWrapper) {
+												currentWrapper.style.opacity = '0'
+												currentWrapper.style.transform =
+													'scale(0.8) rotateY(-180deg)'
+												currentWrapper.style.zIndex = '1'
+											}
+
+											// Переходим к следующему аватару
+											currentIndex = (currentIndex + 1) % avatarWrappers.length
+
+											// Показываем следующий аватар
+											const nextWrapper = avatarWrappers[currentIndex]
+											if (nextWrapper) {
+												setTimeout(() => {
+													nextWrapper.style.opacity = '1'
+													nextWrapper.style.transform = 'scale(1) rotateY(0deg)'
+													nextWrapper.style.zIndex = '10'
+												}, 300)
+											}
+
+											// Обновляем data-current-index
+											containerElement.setAttribute(
+												'data-current-index',
+												currentIndex.toString()
+											)
+										}
+
+										// Запускаем ротацию каждые 5 секунд
+										const interval = setInterval(rotateAvatars, 5000)
+
+										// Сохраняем интервал для очистки
+										containerElement.setAttribute(
+											'data-rotation-interval',
+											interval
+										)
+									}
+								}, 100)
+							}
+						}
+					} else {
+						// Создаем новый кластер
+						const markerHTML = createUserGroupMarkerHTML(group)
+						const icon = L.divIcon({
+							className: 'active-user-cluster',
+							html: markerHTML,
+							iconSize: [70, 80],
+							iconAnchor: [35, 80],
+						})
+
+						const marker = L.marker([centerLat, centerLng], { icon })
+						marker.bindPopup(createGroupPopupContent(group), {
+							maxWidth: 300,
+							autoPan: true,
+							closeOnClick: true,
+							autoClose: true,
+							closeOnEscapeKey: true,
+						})
+
+						marker.addTo(map)
+						currentClusters.set(groupKey, marker)
+
+						// Настраиваем ротацию аватаров для нового кластера
+						setTimeout(() => {
+							const groupId = `group_${group.map(u => u.userId).join('_')}`
+							const containerElement = document.getElementById(groupId)
+
+							if (containerElement && group.length > 1) {
+								let currentIndex = 0
+
+								const rotateAvatars = () => {
+									const avatarWrappers = containerElement.querySelectorAll(
+										'.user-cluster-avatar-wrapper'
+									)
+									if (avatarWrappers.length <= 1) return
+
+									// Скрываем текущий аватар
+									const currentWrapper = avatarWrappers[currentIndex]
+									if (currentWrapper) {
+										currentWrapper.style.opacity = '0'
+										currentWrapper.style.transform =
+											'scale(0.8) rotateY(-180deg)'
+										currentWrapper.style.zIndex = '1'
+									}
+
+									// Переходим к следующему аватару
+									currentIndex = (currentIndex + 1) % avatarWrappers.length
+
+									// Показываем следующий аватар
+									const nextWrapper = avatarWrappers[currentIndex]
+									if (nextWrapper) {
+										setTimeout(() => {
+											nextWrapper.style.opacity = '1'
+											nextWrapper.style.transform = 'scale(1) rotateY(0deg)'
+											nextWrapper.style.zIndex = '10'
+										}, 300)
+									}
+
+									// Обновляем data-current-index
+									containerElement.setAttribute(
+										'data-current-index',
+										currentIndex.toString()
+									)
+								}
+
+								// Запускаем ротацию каждые 5 секунд
+								const interval = setInterval(rotateAvatars, 5000)
+
+								// Сохраняем интервал для очистки
+								containerElement.setAttribute(
+									'data-rotation-interval',
+									interval
+								)
+							}
+						}, 100) // Минимальная задержка для инициализации DOM
 					}
-					<br />
-					Последняя активность: ${new Date(user.lastActive * 1000).toLocaleString()}
-					<br />
-					Средняя скорость: ${user.averageSpeed.toFixed(1)} км/ч
-				`)
-
-					marker.addTo(map)
-					currentMarkers.set(user.userId, marker)
 				}
-
-				// Обновляем кеш данных
-				currentUserData.set(user.userId, {
-					...user,
-					isUserAdmin,
-					isRecentlyActive,
-				})
 			})
+		}, [
+			map,
+			users,
+			admins,
+			groupUsersByLocation,
+			createUserMarkerHTML,
+			createUserGroupMarkerHTML,
+			createGroupPopupContent,
+		])
 
-			// Cleanup function
-			return () => {
-				// Не удаляем маркеры при размонтировании, они будут переиспользованы
+		// Эффект для дебаунсированного обновления маркеров
+		useEffect(() => {
+			// Очищаем предыдущий таймаут
+			if (updateTimeoutRef.current) {
+				clearTimeout(updateTimeoutRef.current)
 			}
-		}, [users, admins, map, createMarkerHTML, updateMarkerContent])
+
+			// Устанавливаем новый таймаут для дебаунсинга
+			updateTimeoutRef.current = setTimeout(() => {
+				updateMarkers()
+			}, 150) // 150мс дебаунс для плавности
+
+			return () => {
+				if (updateTimeoutRef.current) {
+					clearTimeout(updateTimeoutRef.current)
+				}
+			}
+		}, [updateMarkers])
 
 		// Cleanup при размонтировании компонента
 		useEffect(() => {
 			return () => {
 				if (map) {
+					// Очищаем интервалы ротации
+					const allContainers = document.querySelectorAll(
+						'[data-rotation-interval]'
+					)
+					allContainers.forEach(container => {
+						const intervalId = container.getAttribute('data-rotation-interval')
+						if (intervalId) {
+							clearInterval(parseInt(intervalId))
+						}
+					})
+
+					// Удаляем маркеры
 					for (const marker of markersRef.current.values()) {
 						map.removeLayer(marker)
 					}
+					for (const marker of clustersRef.current.values()) {
+						map.removeLayer(marker)
+					}
 					markersRef.current.clear()
+					clustersRef.current.clear()
 					userDataRef.current.clear()
 				}
 			}

@@ -243,6 +243,16 @@
 	transform: scale(1.1);
 }
 
+/* Плавное перемещение маркеров */
+.leaflet-marker-pane .leaflet-marker-icon {
+	transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.active-user-marker .leaflet-marker-icon,
+.active-user-cluster .leaflet-marker-icon {
+	transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
 @keyframes userMarkerFadeIn {
 	0% {
 		opacity: 0;
@@ -348,6 +358,191 @@
 	transition: all 0.3s ease;
 }
 
+/* Стили для кластеров пользователей */
+.active-user-cluster {
+	cursor: pointer;
+	transition: all 0.3s ease;
+	animation: userClusterFadeIn 0.6s ease-out;
+}
+
+.active-user-cluster:hover {
+	transform: scale(1.05);
+}
+
+@keyframes userClusterFadeIn {
+	0% {
+		opacity: 0;
+		transform: scale(0.8) translateY(10px);
+	}
+	100% {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+/* Стили для аватара кластера */
+.user-cluster-avatar {
+	position: relative;
+}
+
+.user-cluster-avatar.admin-cluster {
+	background-size: 200% 200% !important;
+	animation: adminGlow 2s ease-in-out infinite alternate;
+}
+
+.user-cluster-avatar.active-cluster.regular-cluster {
+	animation: userPulse 3s ease-in-out infinite;
+}
+
+.user-cluster-avatar.active-cluster.admin-cluster {
+	animation: adminPulse 3s ease-in-out infinite,
+		adminGlow 2s ease-in-out infinite alternate;
+}
+
+/* Стили для элементов аватаров в кластере */
+.user-cluster-avatar-item {
+	position: relative;
+	transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+	transform-style: preserve-3d;
+	backface-visibility: hidden;
+}
+
+/* Стили для wrapper'ов аватаров в кластере */
+.user-cluster-avatar-wrapper {
+	position: relative;
+	transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+	transform-style: preserve-3d;
+	backface-visibility: hidden;
+}
+
+.user-cluster-avatar-item.admin-cluster {
+	background-size: 200% 200% !important;
+	animation: adminGlow 2s ease-in-out infinite alternate;
+}
+
+.user-cluster-avatar-item.active-cluster.regular-cluster {
+	animation: userPulse 3s ease-in-out infinite;
+}
+
+.user-cluster-avatar-item.active-cluster.admin-cluster {
+	animation: adminPulse 3s ease-in-out infinite,
+		adminGlow 2s ease-in-out infinite alternate;
+}
+
+/* Hover эффекты для кластеров */
+.active-user-cluster:hover .user-cluster-avatar.regular-cluster {
+	box-shadow: 0 0 20px rgba(66, 153, 225, 0.6), 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.active-user-cluster:hover .user-cluster-avatar.admin-cluster {
+	box-shadow: 0 0 25px rgba(237, 137, 54, 0.8), 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.active-user-cluster:hover .user-cluster-avatar-item.regular-cluster {
+	box-shadow: 0 0 20px rgba(66, 153, 225, 0.6), 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.active-user-cluster:hover .user-cluster-avatar-item.admin-cluster {
+	box-shadow: 0 0 25px rgba(237, 137, 54, 0.8), 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Анимация индикатора ротации */
+@keyframes rotationProgress {
+	0% {
+		width: 0%;
+		opacity: 0.8;
+	}
+	50% {
+		opacity: 1;
+	}
+	100% {
+		width: 100%;
+		opacity: 0.3;
+	}
+}
+
+/* Улучшенная анимация перехода аватаров */
+.user-cluster-avatar-item[style*='opacity: 0'] {
+	animation: avatarFadeOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.user-cluster-avatar-item[style*='opacity: 1'] {
+	animation: avatarFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes avatarFadeOut {
+	0% {
+		opacity: 1;
+		transform: scale(1) rotateY(0deg);
+	}
+	50% {
+		opacity: 0.5;
+		transform: scale(0.9) rotateY(-90deg);
+	}
+	100% {
+		opacity: 0;
+		transform: scale(0.8) rotateY(-180deg);
+	}
+}
+
+@keyframes avatarFadeIn {
+	0% {
+		opacity: 0;
+		transform: scale(0.8) rotateY(180deg);
+	}
+	50% {
+		opacity: 0.5;
+		transform: scale(0.9) rotateY(90deg);
+	}
+	100% {
+		opacity: 1;
+		transform: scale(1) rotateY(0deg);
+	}
+}
+
+/* Стили для счетчика кластера */
+.user-cluster-counter {
+	animation: counterPulse 2s ease-in-out infinite;
+}
+
+@keyframes counterPulse {
+	0%,
+	100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.1);
+	}
+}
+
+/* Лейбл группы пользователей */
+.user-cluster-label {
+	transition: all 0.3s ease;
+}
+
+.active-user-cluster:hover .user-cluster-label {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Адаптивные стили для мобильных устройств */
+@media (max-width: 768px) {
+	.user-cluster-avatar-container {
+		transform: scale(0.9);
+	}
+
+	.user-cluster-label {
+		font-size: 8px !important;
+		padding: 2px 4px !important;
+	}
+
+	.user-cluster-counter {
+		font-size: 10px !important;
+		padding: 3px 5px !important;
+	}
+}
+
+/* Дополнительные стили для пользователей */
 .user-info-label:hover {
 	transform: translateY(-1px);
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -361,47 +556,6 @@
 	);
 	border: 1px solid rgba(237, 137, 54, 0.3);
 	color: #744210;
-}
-
-/* Стили для надписи Staff (старая версия - можно удалить) */
-.staff-label {
-	font-size: 11px;
-	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 1px;
-	margin-bottom: 3px;
-	background: linear-gradient(
-		45deg,
-		#c084fc,
-		#e879f9,
-		#fbbf24,
-		#f59e0b,
-		#a855f7,
-		#9333ea,
-		#fbbf24,
-		#e879f9,
-		#c084fc
-	);
-	background-size: 400% 400%;
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
-	animation: staffGradient 3s ease-in-out infinite;
-	-webkit-text-stroke: 0.5px rgba(75, 85, 99, 0.3);
-	text-shadow: -0.5px -0.5px 0 rgba(75, 85, 99, 0.2),
-		0.5px -0.5px 0 rgba(75, 85, 99, 0.2), -0.5px 0.5px 0 rgba(75, 85, 99, 0.2),
-		0.5px 0.5px 0 rgba(75, 85, 99, 0.2), 0 0 4px rgba(168, 85, 247, 0.4);
-	filter: drop-shadow(0 1px 2px rgba(168, 85, 247, 0.1));
-}
-
-/* Стили для curved текста Staff */
-.staff-curved-text {
-	fill: url(#staffGradientSVG);
-	stroke: rgba(75, 85, 99, 0.4);
-	stroke-width: 0.5;
-	text-transform: uppercase;
-	animation: staffGradientSVG 3s ease-in-out infinite;
-	filter: drop-shadow(0 1px 2px rgba(168, 85, 247, 0.15));
 }
 
 /* Стили для badge Staff */
@@ -441,26 +595,5 @@
 	100% {
 		background-position: 0% 50%;
 		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.1);
-	}
-}
-
-@keyframes staffGradient {
-	0% {
-		background-position: 0% 50%;
-	}
-	20% {
-		background-position: 25% 25%;
-	}
-	40% {
-		background-position: 75% 0%;
-	}
-	60% {
-		background-position: 100% 75%;
-	}
-	80% {
-		background-position: 50% 100%;
-	}
-	100% {
-		background-position: 0% 50%;
 	}
 }
