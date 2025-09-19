@@ -471,9 +471,6 @@ const UserMap = ({ userId, admins }) => {
 	const [showWeather, setShowWeather] = useState(() => {
 		return JSON.parse(localStorage.getItem('showWeather') || 'false')
 	})
-	const [showWeatherWidget, setShowWeatherWidget] = useState(() => {
-		return JSON.parse(localStorage.getItem('showWeatherWidget') || 'false')
-	})
 
 	const [newStation, setNewStation] = useState(null)
 	const [isAddingStation, setIsAddingStation] = useState(false)
@@ -546,17 +543,6 @@ const UserMap = ({ userId, admins }) => {
 		setShowWeather(prev => {
 			const newValue = !prev
 			localStorage.setItem('showWeather', JSON.stringify(newValue))
-			// Также переключаем виджет погоды одновременно
-			setShowWeatherWidget(newValue)
-			localStorage.setItem('showWeatherWidget', JSON.stringify(newValue))
-			return newValue
-		})
-	}, [])
-
-	const toggleWeatherWidget = useCallback(() => {
-		setShowWeatherWidget(prev => {
-			const newValue = !prev
-			localStorage.setItem('showWeatherWidget', JSON.stringify(newValue))
 			return newValue
 		})
 	}, [])
@@ -1651,11 +1637,11 @@ const UserMap = ({ userId, admins }) => {
 				</MapContainer>
 
 				{/* Погодный виджет */}
-				{showWeatherWidget && userPosition && (
+				{showWeather && userPosition && (
 					<WeatherWidget
 						lat={userPosition[0]}
 						lon={userPosition[1]}
-						isVisible={showWeatherWidget}
+						isVisible={showWeather}
 						position='top-left'
 					/>
 				)}
@@ -1708,7 +1694,7 @@ const UserMap = ({ userId, admins }) => {
 					onClick={toggleWeather}
 					variant='solid'
 					icon={<FaCloudSun />}
-					colorScheme={showWeather || showWeatherWidget ? 'blue' : 'gray'}
+					colorScheme={showWeather ? 'blue' : 'gray'}
 					size='md'
 					borderRadius={3}
 					borderColor='gray'
