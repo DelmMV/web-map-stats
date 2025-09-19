@@ -233,14 +233,16 @@ const PersistentUserMarkers = memo(
 			<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
 				<div class="avatar-container" style="position: relative; width: 45px; height: 45px;">
 					${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
-					<img 
-						src="${user.avatarUrl || '/pwa-192.png'}" 
-						alt="${user.username}" 
-						class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
+										<img 
+							src="/masked-icon.svg" 
+							data-avatar="${user.avatarUrl || ''}"
+							alt="${user.username}" 
+							class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
 					isRecentlyActive ? 'user-marker-active' : ''
 				} user-avatar"
-						style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background-image: url('/pwa-192.png'); background-size: cover;"
-						onerror="this.style.opacity = 0;"
+							style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background: transparent;"
+							onload="(function(img){const a=img.getAttribute('data-avatar');if(a){const i=new Image();i.onload=function(){img.src=a};i.onerror=function(){img.src='/masked-icon.svg'};i.src=a}})(this)"
+							onerror="this.src='/masked-icon.svg'"
 					>
 				</div>
 				<div class="${labelClasses}">
@@ -293,7 +295,8 @@ const PersistentUserMarkers = memo(
 								 z-index: ${index === 0 ? '10' : '1'};" data-index="${index}">
 							${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
 							<img 
-								src="${user.avatarUrl || '/pwa-192.png'}" 
+								src="/masked-icon.svg" 
+								data-avatar="${user.avatarUrl || ''}"
 								alt="${user.username}" 
 								class="user-cluster-avatar-item ${
 									isUserAdmin ? 'admin-cluster' : 'regular-cluster'
@@ -302,7 +305,8 @@ const PersistentUserMarkers = memo(
 									   border: 6px solid transparent;
 									   background: linear-gradient(white, white) padding-box, ${userBorderStyle} border-box;
 									   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);"
-								onerror="this.style.opacity = 0;"
+								onload="(function(img){const a=img.getAttribute('data-avatar');if(a){const i=new Image();i.onload=function(){img.src=a};i.onerror=function(){img.src='/masked-icon.svg'};i.src=a}})(this)"
+								onerror="this.src='/masked-icon.svg'"
 							>
 						</div>
 					`

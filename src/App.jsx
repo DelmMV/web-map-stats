@@ -11,16 +11,18 @@ import { useTelegramTheme } from './hooks/useTelegramTheme'
 import { useTelegramUser } from './hooks/useTelegramUser'
 import './index.css'
 import NavBar from './NavBar.jsx'
+import {
+	TopUsersPage as TopUsers,
+	MapPage as UserMap,
+	WeeklyStatsPage as WeeklyStats,
+} from './pages'
 import './styles/theme.css'
-import TopUsers from './TopUsers.jsx'
-import UserMap from './UserMap.jsx'
 import {
 	APP_CONFIG,
 	devLog,
 	getCurrentConfig,
 	getDefaultUser,
 } from './utils/config.js'
-import WeeklyStats from './WeeklyStats.jsx'
 
 const queryClient = new QueryClient()
 
