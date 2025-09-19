@@ -40,7 +40,6 @@ import {
 } from 'react-leaflet'
 import HeatmapLayer from './components/HeatmapLayer'
 import MarkerFilterControl from './components/MarkerFilterControl'
-import ModernMarkerClusterGroup from './components/ModernMarkerCluster'
 import {
 	createCharging24Marker,
 	createChargingAutoMarker,
@@ -113,13 +112,12 @@ const OptimizedMarker = memo(
 			[marker]
 		)
 
-		// Создаем опции маркера, включая тип для кластеризации
+		// Создаем опции маркера
 		const markerOptions = useMemo(
 			() => ({
 				icon: marker.icon,
-				markerType: marker.markerType || 'charging', // Обеспечиваем значение по умолчанию
 			}),
-			[marker.icon, marker.markerType]
+			[marker.icon]
 		)
 
 		return (
@@ -1253,18 +1251,11 @@ const UserMap = ({ userId, admins }) => {
 					</LayersControl>
 
 					{showChargingStations && (
-						<ModernMarkerClusterGroup
-							chunkedLoading={true}
-							spiderfyOnMaxZoom={true}
-							removeOutsideVisibleBounds={true}
-							disableClusteringAtZoom={16}
-							maxClusterRadius={50}
-							zoomToBoundsOnClick={true}
-						>
+						<>
 							{visibleMarkers.map(marker => (
 								<OptimizedMarker key={marker._id} marker={marker} />
 							))}
-						</ModernMarkerClusterGroup>
+						</>
 					)}
 
 					{Object.keys(routesState.data).map((sessionId, idx) => {
