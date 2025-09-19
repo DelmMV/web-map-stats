@@ -40,6 +40,7 @@ import {
 } from 'react-leaflet'
 import HeatmapLayer from './components/HeatmapLayer'
 import MarkerFilterControl from './components/MarkerFilterControl'
+import ModernMarkerClusterGroup from './components/ModernMarkerCluster'
 import {
 	createCharging24Marker,
 	createChargingAutoMarker,
@@ -52,6 +53,7 @@ import {
 	createUserMarker,
 	createWorkshopMarker,
 } from './components/ModernMarkerIcon'
+import PerformanceStats from './components/PerformanceStats'
 import WeatherLayer from './components/WeatherLayer'
 import WeatherWidget from './components/WeatherWidget'
 import routesReducer from './hooks/routesReducer'
@@ -1294,14 +1296,93 @@ const UserMap = ({ userId, admins }) => {
 		[mapBounds]
 	)
 
+	// Состояние для зума и связанные хуки
+	const [mapInstance, setMapInstance] = useState(null)
+	const [currentZoom, setCurrentZoom] = useState(DEFAULT_MAP_ZOOM)
+	const [showPerfStats, setShowPerfStats] = useState(false) // По умолчанию отключаем для production
+
+	// Дебаунсим обновление зума для предотвращения частых перерендеров
+	const debouncedSetZoom = useMemo(
+		() => debounce(zoom => setCurrentZoom(zoom), 100),
+		[]
+	)
+
+	// Очищаем дебаунс при размонтировании
+	useEffect(() => {
+		return () => {
+			debouncedSetZoom.cancel()
+		}
+	}, [debouncedSetZoom])
+
+	// Определяем, нужно ли использовать кластеризацию в зависимости от зума и количества маркеров
+	const shouldUseClustering = useMemo(() => {
+		// Используем кластеризацию при зуме меньше 14 или при большом количестве маркеров
+		const clustering = currentZoom < 14 || filteredMarkers.length > 100
+		// Логируем только в dev режиме
+		if (process.env.NODE_ENV === 'development') {
+			console.log(
+				`🗺️ Map Performance - Zoom: ${currentZoom}, Total: ${filteredMarkers.length}, Clustering: ${clustering}`
+			)
+		}
+		return clustering
+	}, [currentZoom, filteredMarkers.length])
+
+	// Мемоизируем настройки кластера для лучшей производительности
+	const clusterOptions = useMemo(
+		() => ({
+			maxClusterRadius: currentZoom < 10 ? 120 : currentZoom < 12 ? 80 : 50,
+			disableClusteringAtZoom: 15,
+			spiderfyOnMaxZoom: true,
+			showCoverageOnHover: false,
+			zoomToBoundsOnClick: true,
+			removeOutsideVisibleBounds: true,
+			animateAddingMarkers: false,
+			chunkedLoading: true,
+			chunkDelay: currentZoom < 8 ? 50 : 10,
+			chunkProgress: null,
+		}),
+		[currentZoom]
+	)
+
 	// Отфильтрованные маркеры, видимые в текущей области карты
 	// Исключаем активных пользователей из фильтрации по границам, чтобы избежать мерцания
 	const visibleMarkers = useMemo(() => {
-		if (!mapBounds) return filteredMarkers
-		return filteredMarkers.filter(isMarkerInBounds)
-	}, [filteredMarkers, mapBounds, isMarkerInBounds])
+		let markers = filteredMarkers
 
-	const [mapInstance, setMapInstance] = useState(null)
+		// Фильтруем по границам карты если они определены
+		if (mapBounds) {
+			markers = markers.filter(isMarkerInBounds)
+		}
+
+		// На очень низких уровнях зума ограничиваем количество маркеров для производительности
+		if (currentZoom < 10 && markers.length > 500) {
+			const originalCount = markers.length
+
+			// Используем более агрессивную фильтрацию на низких зумах
+			if (currentZoom < 6) {
+				// На очень низком зуме показываем только самые важные маркеры
+				markers = markers.filter((_, index) => index % 20 === 0).slice(0, 100)
+			} else if (currentZoom < 8) {
+				// На низком зуме показываем каждый 10-й маркер
+				markers = markers.filter((_, index) => index % 10 === 0).slice(0, 250)
+			} else if (currentZoom < 9) {
+				// На среднем зуме показываем каждый 5-й маркер
+				markers = markers.filter((_, index) => index % 5 === 0).slice(0, 400)
+			} else {
+				// На высоком зуме показываем каждый 3-й маркер
+				markers = markers.filter((_, index) => index % 3 === 0)
+			}
+
+			// Логируем только в dev режиме
+			if (process.env.NODE_ENV === 'development') {
+				console.log(
+					`📍 Zoom Optimization - ${originalCount} → ${markers.length} markers (zoom: ${currentZoom})`
+				)
+			}
+		}
+
+		return markers
+	}, [filteredMarkers, mapBounds, isMarkerInBounds, currentZoom])
 
 	const MapEvents = () => {
 		const map = useMapEvents({
@@ -1311,6 +1392,9 @@ const UserMap = ({ userId, admins }) => {
 				}
 			},
 			moveend: handleMapMoveEnd,
+			zoomend: e => {
+				debouncedSetZoom(e.target.getZoom())
+			},
 		})
 
 		// Сохраняем экземпляр карты и инициализируем границы
@@ -1442,9 +1526,19 @@ const UserMap = ({ userId, admins }) => {
 
 					{showChargingStations && (
 						<>
-							{visibleMarkers.map(marker => (
-								<OptimizedMarker key={marker._id} marker={marker} />
-							))}
+							{shouldUseClustering ? (
+								<ModernMarkerClusterGroup {...clusterOptions}>
+									{visibleMarkers.map(marker => (
+										<OptimizedMarker key={marker._id} marker={marker} />
+									))}
+								</ModernMarkerClusterGroup>
+							) : (
+								<>
+									{visibleMarkers.map(marker => (
+										<OptimizedMarker key={marker._id} marker={marker} />
+									))}
+								</>
+							)}
 						</>
 					)}
 
@@ -1622,6 +1716,22 @@ const UserMap = ({ userId, admins }) => {
 				/>
 			</Box>
 
+			<Box position='absolute' top='380px' left='11px' zIndex={1000}>
+				<IconButton
+					onClick={() => setShowPerfStats(!showPerfStats)}
+					variant='solid'
+					icon={<span style={{ fontSize: '14px' }}>📊</span>}
+					colorScheme={showPerfStats ? 'green' : 'gray'}
+					size='md'
+					borderRadius={3}
+					borderColor='gray'
+					borderWidth={2}
+					width='30px'
+					padding='0'
+					aria-label='Показать статистику производительности'
+				/>
+			</Box>
+
 			<Suspense fallback={<div>Loading...</div>}>
 				<AddStationModal
 					isOpen={isAddOpen}
@@ -1654,6 +1764,15 @@ const UserMap = ({ userId, admins }) => {
 					/>
 				</Suspense>
 			</Suspense>
+
+			{/* Статистика производительности */}
+			<PerformanceStats
+				totalMarkers={filteredMarkers.length}
+				visibleMarkers={visibleMarkers.length}
+				currentZoom={currentZoom}
+				shouldUseClustering={shouldUseClustering}
+				isVisible={showPerfStats}
+			/>
 		</Box>
 	)
 }
