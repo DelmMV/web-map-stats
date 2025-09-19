@@ -176,83 +176,236 @@ const OptimizedMarker = memo(
 	}
 )
 
-// Оптимизированный компонент маркера активного пользователя
-const OptimizedActiveUserMarker = memo(
-	({ user, admins }) => {
-		// Проверяем является ли пользователь админом
-		const isUserAdmin = admins && admins.includes(user.userId)
+// Кастомный компонент для управления маркерами без пересоздания DOM
+const PersistentUserMarkers = memo(
+	({ users, admins, map }) => {
+		const markersRef = useRef(new Map()) // Хранилище маркеров
+		const userDataRef = useRef(new Map()) // Кеш данных пользователей
 
-		// Определяем время последней активности для анимации пульса
-		const isRecentlyActive = Date.now() - user.lastActive * 1000 < 300000 // 5 минут
+		// Функция создания HTML для маркера
+		const createMarkerHTML = useCallback(
+			(user, isUserAdmin, isRecentlyActive) => {
+				const labelClasses = [
+					'user-info-label',
+					isUserAdmin ? 'admin-label' : '',
+				]
+					.filter(Boolean)
+					.join(' ')
 
-		// Мемоизируем иконку пользователя
-		const userIcon = useMemo(() => {
-			const labelClasses = ['user-info-label', isUserAdmin ? 'admin-label' : '']
-				.filter(Boolean)
-				.join(' ')
-
-			return L.divIcon({
-				className: 'active-user-marker',
-				html: `
-					<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
-						<div style="position: relative; width: 55px; height: 55px;">
-							${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
-							<img 
-								src="${user.avatarUrl || '/pwa-192.png'}" 
-								alt="${user.username}" 
-								class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
+				return `
+			<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
+				<div class="avatar-container" style="position: relative; width: 55px; height: 55px;">
+					${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
+					<img 
+						src="${user.avatarUrl || '/pwa-192.png'}" 
+						alt="${user.username}" 
+						class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
 					isRecentlyActive ? 'user-marker-active' : ''
-				}"
-								style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; opacity: 0; transition: opacity 0.3s; background-image: url('/pwa-192.png'); background-size: cover;"
-								onload="this.style.opacity = 1;"
-								onerror="this.style.opacity = 0; console.log('Avatar failed to load for ${
-									user.username
-								}:', '${user.avatarUrl}');"
-							>
-						</div>
-						<div class="${labelClasses}">
-							${user.username || 'Пользователь'}
-							<br>
-							${user.averageSpeed.toFixed(0)} км/ч
-						</div>
-					</div>
-				`,
-				iconSize: [80, 85],
-				iconAnchor: [40, 85],
-			})
-		}, [
-			user.avatarUrl,
-			user.username,
-			user.averageSpeed,
-			isUserAdmin,
-			isRecentlyActive,
-		])
-
-		return (
-			<Marker position={[user.latitude, user.longitude]} icon={userIcon}>
-				<Popup>
-					{isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}
-					{user.username || 'Неизвестный'}
-					<br />
-					Последняя активность:{' '}
-					{new Date(user.lastActive * 1000).toLocaleString()}
-					<br />
-					Средняя скорость: {user.averageSpeed.toFixed(1)} км/ч
-				</Popup>
-			</Marker>
+				} user-avatar"
+						style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background-image: url('/pwa-192.png'); background-size: cover;"
+						onerror="this.style.opacity = 0;"
+					>
+				</div>
+				<div class="${labelClasses}">
+					<span class="username">${user.username || 'Пользователь'}</span>
+					<br>
+					<span class="speed">${user.averageSpeed.toFixed(0)} км/ч</span>
+				</div>
+			</div>
+		`
+			},
+			[]
 		)
+
+		// Функция для селективного обновления содержимого маркера
+		const updateMarkerContent = useCallback(
+			(marker, user, isUserAdmin, isRecentlyActive, cachedData) => {
+				const markerElement = marker.getElement()
+				if (!markerElement) return
+
+				// Обновляем только изменившиеся части
+
+				// 1. Обновляем badge Staff (если статус админа изменился)
+				if (cachedData.isUserAdmin !== isUserAdmin) {
+					const badgeContainer =
+						markerElement.querySelector('.avatar-container')
+					if (badgeContainer) {
+						const existingBadge = badgeContainer.querySelector('.staff-badge')
+						if (isUserAdmin && !existingBadge) {
+							// Добавляем badge
+							const badge = document.createElement('div')
+							badge.className = 'staff-badge'
+							badge.textContent = 'STAFF'
+							badgeContainer.appendChild(badge)
+						} else if (!isUserAdmin && existingBadge) {
+							// Удаляем badge
+							existingBadge.remove()
+						}
+					}
+				}
+
+				// 2. Обновляем классы аватарки (если изменился статус)
+				const avatarImg = markerElement.querySelector('.user-avatar')
+				if (
+					avatarImg &&
+					(cachedData.isUserAdmin !== isUserAdmin ||
+						cachedData.isRecentlyActive !== isRecentlyActive)
+				) {
+					const newClasses = `${
+						isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'
+					} ${isRecentlyActive ? 'user-marker-active' : ''} user-avatar`
+					avatarImg.className = newClasses
+				}
+
+				// 3. Обновляем URL аватарки (только если изменился)
+				if (avatarImg && cachedData.avatarUrl !== user.avatarUrl) {
+					avatarImg.src = user.avatarUrl || '/pwa-192.png'
+				}
+
+				// 4. Обновляем имя пользователя (только если изменилось)
+				const usernameElement = markerElement.querySelector('.username')
+				if (usernameElement && cachedData.username !== user.username) {
+					usernameElement.textContent = user.username || 'Пользователь'
+				}
+
+				// 5. Обновляем скорость (только если изменилась)
+				const speedElement = markerElement.querySelector('.speed')
+				if (
+					speedElement &&
+					Math.abs(cachedData.averageSpeed - user.averageSpeed) > 1
+				) {
+					speedElement.textContent = `${user.averageSpeed.toFixed(0)} км/ч`
+				}
+
+				// 6. Обновляем класс label (если изменился статус админа)
+				const labelElement = markerElement.querySelector('.user-info-label')
+				if (labelElement && cachedData.isUserAdmin !== isUserAdmin) {
+					const newLabelClasses = [
+						'user-info-label',
+						isUserAdmin ? 'admin-label' : '',
+					]
+						.filter(Boolean)
+						.join(' ')
+					labelElement.className = newLabelClasses
+				}
+			},
+			[]
+		)
+
+		// Эффект для управления маркерами
+		useEffect(() => {
+			if (!map || !users) return
+
+			const currentMarkers = markersRef.current
+			const currentUserData = userDataRef.current
+			const userIds = new Set(users.map(user => user.userId))
+
+			// Удаляем маркеры пользователей, которых больше нет
+			for (const [userId, marker] of currentMarkers.entries()) {
+				if (!userIds.has(userId)) {
+					map.removeLayer(marker)
+					currentMarkers.delete(userId)
+					currentUserData.delete(userId)
+				}
+			}
+
+			// Обновляем или создаем маркеры
+			users.forEach(user => {
+				const isUserAdmin = admins && admins.includes(user.userId)
+				const isRecentlyActive = Date.now() - user.lastActive * 1000 < 300000
+
+				const existingMarker = currentMarkers.get(user.userId)
+				const cachedData = currentUserData.get(user.userId)
+
+				// Проверяем нужно ли обновление
+				const needsUpdate =
+					!cachedData ||
+					Math.abs(cachedData.latitude - user.latitude) > 0.0001 ||
+					Math.abs(cachedData.longitude - user.longitude) > 0.0001 ||
+					Math.abs(cachedData.averageSpeed - user.averageSpeed) > 1 ||
+					Math.abs(cachedData.lastActive - user.lastActive) > 60 ||
+					cachedData.username !== user.username ||
+					cachedData.avatarUrl !== user.avatarUrl ||
+					cachedData.isUserAdmin !== isUserAdmin
+
+				if (existingMarker && !needsUpdate) {
+					return // Маркер актуален, ничего не делаем
+				}
+
+				if (existingMarker) {
+					// Обновляем существующий маркер
+					const newLatLng = [user.latitude, user.longitude]
+					existingMarker.setLatLng(newLatLng)
+					updateMarkerContent(
+						existingMarker,
+						user,
+						isUserAdmin,
+						isRecentlyActive,
+						cachedData
+					)
+				} else {
+					// Создаем новый маркер
+					const markerHTML = createMarkerHTML(
+						user,
+						isUserAdmin,
+						isRecentlyActive
+					)
+					const icon = L.divIcon({
+						className: 'active-user-marker',
+						html: markerHTML,
+						iconSize: [80, 85],
+						iconAnchor: [40, 85],
+					})
+
+					const marker = L.marker([user.latitude, user.longitude], { icon })
+					marker.bindPopup(`
+					${isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}${
+						user.username || 'Неизвестный'
+					}
+					<br />
+					Последняя активность: ${new Date(user.lastActive * 1000).toLocaleString()}
+					<br />
+					Средняя скорость: ${user.averageSpeed.toFixed(1)} км/ч
+				`)
+
+					marker.addTo(map)
+					currentMarkers.set(user.userId, marker)
+				}
+
+				// Обновляем кеш данных
+				currentUserData.set(user.userId, {
+					...user,
+					isUserAdmin,
+					isRecentlyActive,
+				})
+			})
+
+			// Cleanup function
+			return () => {
+				// Не удаляем маркеры при размонтировании, они будут переиспользованы
+			}
+		}, [users, admins, map, createMarkerHTML, updateMarkerContent])
+
+		// Cleanup при размонтировании компонента
+		useEffect(() => {
+			return () => {
+				if (map) {
+					for (const marker of markersRef.current.values()) {
+						map.removeLayer(marker)
+					}
+					markersRef.current.clear()
+					userDataRef.current.clear()
+				}
+			}
+		}, [map])
+
+		return null // Этот компонент не рендерит React элементы
 	},
 	(prevProps, nextProps) => {
-		// Ре-рендерим только если изменились ключевые свойства пользователя или список админов
 		return (
-			prevProps.user.userId === nextProps.user.userId &&
-			prevProps.user.latitude === nextProps.user.latitude &&
-			prevProps.user.longitude === nextProps.user.longitude &&
-			prevProps.user.averageSpeed === nextProps.user.averageSpeed &&
-			prevProps.user.lastActive === nextProps.user.lastActive &&
-			prevProps.user.username === nextProps.user.username &&
-			prevProps.user.avatarUrl === nextProps.user.avatarUrl &&
-			JSON.stringify(prevProps.admins) === JSON.stringify(nextProps.admins)
+			prevProps.users === nextProps.users &&
+			prevProps.admins === nextProps.admins &&
+			prevProps.map === nextProps.map
 		)
 	}
 )
@@ -304,6 +457,11 @@ const UserMap = ({ userId, admins }) => {
 		isLoading: isActiveUsersLoading,
 		error: activeUsersError,
 	} = useActiveUsers()
+
+	// Мемоизированный список активных пользователей для предотвращения ненужных ре-рендеров
+	const memoizedActiveUsers = useMemo(() => {
+		return activeUsers || []
+	}, [activeUsers])
 
 	const [showActiveUsers, setShowActiveUsers] = useState(false)
 
@@ -1143,6 +1301,8 @@ const UserMap = ({ userId, admins }) => {
 		return filteredMarkers.filter(isMarkerInBounds)
 	}, [filteredMarkers, mapBounds, isMarkerInBounds])
 
+	const [mapInstance, setMapInstance] = useState(null)
+
 	const MapEvents = () => {
 		const map = useMapEvents({
 			click: e => {
@@ -1153,10 +1313,13 @@ const UserMap = ({ userId, admins }) => {
 			moveend: handleMapMoveEnd,
 		})
 
-		// Инициализация границ карты при первой загрузке
+		// Сохраняем экземпляр карты и инициализируем границы
 		useEffect(() => {
-			if (map && !mapBounds) {
-				setMapBounds(map.getBounds())
+			if (map) {
+				setMapInstance(map)
+				if (!mapBounds) {
+					setMapBounds(map.getBounds())
+				}
 			}
 		}, [map, mapBounds])
 
@@ -1336,14 +1499,13 @@ const UserMap = ({ userId, admins }) => {
 					{showActiveUsers &&
 						!isActiveUsersLoading &&
 						!activeUsersError &&
-						activeUsers &&
-						activeUsers.map(user => (
-							<OptimizedActiveUserMarker
-								key={user.userId}
-								user={user}
+						mapInstance && (
+							<PersistentUserMarkers
+								users={memoizedActiveUsers}
 								admins={admins}
+								map={mapInstance}
 							/>
-						))}
+						)}
 
 					{showWeather && (
 						<WeatherLayer
