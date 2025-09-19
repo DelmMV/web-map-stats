@@ -472,7 +472,7 @@ const UserMap = ({ userId, admins }) => {
 		return JSON.parse(localStorage.getItem('showWeather') || 'false')
 	})
 	const [showWeatherWidget, setShowWeatherWidget] = useState(() => {
-		return JSON.parse(localStorage.getItem('showWeatherWidget') || 'true')
+		return JSON.parse(localStorage.getItem('showWeatherWidget') || 'false')
 	})
 
 	const [newStation, setNewStation] = useState(null)
@@ -546,6 +546,9 @@ const UserMap = ({ userId, admins }) => {
 		setShowWeather(prev => {
 			const newValue = !prev
 			localStorage.setItem('showWeather', JSON.stringify(newValue))
+			// Также переключаем виджет погоды одновременно
+			setShowWeatherWidget(newValue)
+			localStorage.setItem('showWeatherWidget', JSON.stringify(newValue))
 			return newValue
 		})
 	}, [])
@@ -1653,7 +1656,7 @@ const UserMap = ({ userId, admins }) => {
 						lat={userPosition[0]}
 						lon={userPosition[1]}
 						isVisible={showWeatherWidget}
-						position='top-right'
+						position='top-left'
 					/>
 				)}
 			</Box>
@@ -1705,14 +1708,14 @@ const UserMap = ({ userId, admins }) => {
 					onClick={toggleWeather}
 					variant='solid'
 					icon={<FaCloudSun />}
-					colorScheme={showWeather ? 'blue' : 'gray'}
+					colorScheme={showWeather || showWeatherWidget ? 'blue' : 'gray'}
 					size='md'
 					borderRadius={3}
 					borderColor='gray'
 					borderWidth={2}
 					width='30px'
 					padding='0'
-					aria-label='Показать погоду'
+					aria-label='Показать погоду на карте и виджет'
 				/>
 			</Box>
 
