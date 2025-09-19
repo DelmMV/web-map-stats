@@ -1642,7 +1642,7 @@ const UserMap = ({ userId, admins }) => {
 						lat={userPosition[0]}
 						lon={userPosition[1]}
 						isVisible={showWeather}
-						position='top-left'
+						position='top-right'
 					/>
 				)}
 			</Box>
