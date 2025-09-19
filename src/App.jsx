@@ -14,71 +14,140 @@ import NavBar from './NavBar.jsx'
 import './styles/theme.css'
 import TopUsers from './TopUsers.jsx'
 import UserMap from './UserMap.jsx'
+import {
+	APP_CONFIG,
+	devLog,
+	getCurrentConfig,
+	getDefaultUser,
+} from './utils/config.js'
 import WeeklyStats from './WeeklyStats.jsx'
 
 const queryClient = new QueryClient()
 
 function App() {
-	//const user = { id: 200885469 } // Example userId
+	// Получаем настройки из конфигурации
+	const { isDev } = APP_CONFIG
+	const config = getCurrentConfig()
+
 	const adminIds = [
 		200885469, 900133683, 527549474, 294170514, 5550302390, 495310665,
 	]
+
+	// Telegram hooks (используются только в production)
 	const telegramUser = useTelegramUser()
 	useTelegramTheme() // Инициализация темы
+
 	const [user, setUser] = useState(null)
+
+	// Инициализация пользователя в зависимости от режима
 	useEffect(() => {
-		if (telegramUser) {
-			setUser(telegramUser)
+		if (isDev) {
+			// Development режим: используем пользователя из конфигурации
+			const devUser = getDefaultUser()
+			devLog.info('Development mode: using configured user', devUser)
+			setUser(devUser)
+		} else {
+			// Production режим: ждем Telegram аутентификацию
+			devLog.info('Production mode: waiting for Telegram authentication')
+			if (telegramUser) {
+				setUser(telegramUser)
+			}
 		}
-	}, [telegramUser])
+	}, [isDev, telegramUser])
 
 	const handleAuth = authUser => {
-		if (authUser && authUser.id) {
-			// setUser({
-			// 	id: authUser.id,
-			// 	firstName: authUser.first_name,
-			// 	lastName: authUser.last_name,
-			// 	username: authUser.username,
-			// })
-			console.log('Auth received:', authUser)
-		} else {
-			console.error('Invalid user data received from Telegram widget')
+		// Эта функция используется только в production режиме
+		if (!isDev && authUser && authUser.id) {
+			setUser({
+				id: authUser.id,
+				firstName: authUser.first_name,
+				lastName: authUser.last_name,
+				username: authUser.username,
+			})
+			devLog.success('Telegram auth successful:', authUser)
+		} else if (!isDev) {
+			console.error('❌ Invalid user data received from Telegram widget')
 		}
 	}
 
+	// Показываем форму входа, если пользователь не аутентифицирован
+	// В dev режиме это не должно происходить, но добавляем защиту
 	if (!user || !user.id) {
-		return (
-			<ChakraProvider>
-				<div
-					style={{
-						display: 'flex',
-						justifyContent: 'center',
-						alignItems: 'center',
-						height: '100vh',
-					}}
-				>
-					<TelegramLoginWidget botName='LampStatsBot' onAuth={handleAuth} />
-				</div>
-			</ChakraProvider>
-		)
+		// В production режиме показываем Telegram виджет
+		if (!isDev) {
+			return (
+				<ChakraProvider>
+					<div
+						style={{
+							display: 'flex',
+							justifyContent: 'center',
+							alignItems: 'center',
+							height: '100vh',
+						}}
+					>
+						<TelegramLoginWidget
+							botName={config.telegramBotName}
+							onAuth={handleAuth}
+						/>
+					</div>
+				</ChakraProvider>
+			)
+		} else {
+			// В dev режиме показываем сообщение о загрузке
+			return (
+				<ChakraProvider>
+					<div
+						style={{
+							display: 'flex',
+							justifyContent: 'center',
+							alignItems: 'center',
+							height: '100vh',
+							flexDirection: 'column',
+						}}
+					>
+						<div>🛠️ Loading development user...</div>
+					</div>
+				</ChakraProvider>
+			)
+		}
 	}
 
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ChakraProvider>
+				{/* Индикатор режима разработки */}
+				{config.showDevIndicator && (
+					<div
+						style={{
+							position: 'fixed',
+							top: '10px',
+							right: '10px',
+							backgroundColor: '#ff6b35',
+							color: 'white',
+							padding: '4px 8px',
+							borderRadius: '4px',
+							fontSize: '12px',
+							fontWeight: 'bold',
+							zIndex: 10000,
+							boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+						}}
+					>
+						🛠️ DEV MODE
+					</div>
+				)}
 				<HashRouter>
 					<Routes>
 						<Route
 							path='/'
-							element={<UserMap userId={user.id} admins={adminIds} />}
+							element={<UserMap userId={user?.id} admins={adminIds} />}
 						/>
 						<Route
 							path='/weekly-stats'
-							element={<WeeklyStats userId={user.id} />}
+							element={<WeeklyStats userId={user?.id} />}
 						/>
 						<Route
 							path='/top-users'
-							element={<TopUsers userId={user.id} admins={adminIds} />}
+							element={<TopUsers userId={user?.id} admins={adminIds} />}
 						/>
 					</Routes>
 					<NavBar />

@@ -94,10 +94,84 @@ export const MAP_CONFIG = {
 	DEFAULT_ZOOM: 10,
 }
 
+// Настройки приложения для разных режимов
+export const APP_CONFIG = {
+	// Определение режима
+	isDev: import.meta.env.DEV,
+	isProduction: import.meta.env.PROD,
+
+	// Настройки разработки
+	development: {
+		// Тестовый пользователь для разработки
+		defaultUser: { id: 200885469 },
+		// Включить отладочную информацию
+		enableDebugLogs: true,
+		// Показать индикатор dev режима
+		showDevIndicator: true,
+	},
+
+	// Настройки продакшен
+	production: {
+		// Telegram bot для аутентификации
+		telegramBotName: 'LampStatsBot',
+		// Отключить отладочную информацию
+		enableDebugLogs: false,
+		// Скрыть индикатор dev режима
+		showDevIndicator: false,
+	},
+}
+
+// Вспомогательные функции для работы с конфигурацией
+export const getCurrentConfig = () => {
+	return APP_CONFIG.isDev ? APP_CONFIG.development : APP_CONFIG.production
+}
+
+export const getDefaultUser = () => {
+	return APP_CONFIG.isDev ? APP_CONFIG.development.defaultUser : null
+}
+
+export const shouldLog = () => {
+	return getCurrentConfig().enableDebugLogs
+}
+
+// Утилита для логирования с учетом режима приложения
+export const devLog = {
+	info: (...args) => {
+		if (shouldLog()) {
+			console.log('ℹ️ [DEV]', ...args)
+		}
+	},
+	warn: (...args) => {
+		if (shouldLog()) {
+			console.warn('⚠️ [DEV]', ...args)
+		}
+	},
+	error: (...args) => {
+		if (shouldLog()) {
+			console.error('❌ [DEV]', ...args)
+		}
+	},
+	success: (...args) => {
+		if (shouldLog()) {
+			console.log('✅ [DEV]', ...args)
+		}
+	},
+	debug: (...args) => {
+		if (shouldLog()) {
+			console.debug('🐛 [DEV]', ...args)
+		}
+	},
+}
+
 // Экспорт для обратной совместимости
 export default {
 	WEATHER_CONFIG,
 	WEATHER_CODES,
 	WEATHER_ICONS,
 	MAP_CONFIG,
+	APP_CONFIG,
+	getCurrentConfig,
+	getDefaultUser,
+	shouldLog,
+	devLog,
 }

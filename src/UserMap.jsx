@@ -233,6 +233,22 @@ const OptimizedActiveUserMarker = memo(
 )
 
 const UserMap = ({ userId, admins }) => {
+	// Защита от undefined userId
+	if (!userId) {
+		return (
+			<div
+				style={{
+					display: 'flex',
+					justifyContent: 'center',
+					alignItems: 'center',
+					height: '100vh',
+				}}
+			>
+				Loading user data...
+			</div>
+		)
+	}
+
 	const user = useTelegramUser()
 
 	const today = new Date().toISOString().split('T')[0]
