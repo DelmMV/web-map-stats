@@ -231,3 +231,224 @@
 	stroke: #4a5568;
 	stroke-width: 0.3px;
 }
+
+/* Стили для маркеров активных пользователей */
+.active-user-marker {
+	cursor: pointer;
+	transition: all 0.3s ease;
+}
+
+.active-user-marker:hover {
+	transform: scale(1.1);
+}
+
+/* Стили для обычных пользователей */
+.user-marker-regular {
+	position: relative;
+	border: 6px solid transparent;
+	background: linear-gradient(white, white) padding-box,
+		linear-gradient(135deg, #4299e1, #63b3ed) border-box !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	transition: all 0.3s ease;
+}
+
+.user-marker-regular:hover {
+	transform: scale(1.05);
+	box-shadow: 0 0 20px rgba(66, 153, 225, 0.6), 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Стили для админов */
+.user-marker-admin {
+	position: relative;
+	border: 6px solid transparent;
+	background: linear-gradient(white, white) padding-box,
+		linear-gradient(135deg, #fed7aa, #fbd38d, #ed8936) border-box !important;
+	background-size: 200% 200% !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	animation: adminGlow 2s ease-in-out infinite alternate;
+	transition: all 0.3s ease;
+}
+
+.user-marker-admin:hover {
+	transform: scale(1.05);
+	box-shadow: 0 0 25px rgba(237, 137, 54, 0.8), 0 6px 16px rgba(0, 0, 0, 0.2);
+	animation-duration: 1s;
+}
+
+@keyframes adminGlow {
+	0% {
+		background-position: 0% 50%, 0% 50%;
+	}
+	50% {
+		background-position: 100% 50%, 100% 50%;
+	}
+	100% {
+		background-position: 0% 50%, 0% 50%;
+	}
+}
+
+/* Пульсирующий эффект для активности */
+.user-marker-regular.user-marker-active {
+	animation: userPulse 3s ease-in-out infinite;
+}
+
+@keyframes userPulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 rgba(66, 153, 225, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+	50% {
+		box-shadow: 0 0 0 10px rgba(66, 153, 225, 0), 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+}
+
+.user-marker-admin.user-marker-active {
+	animation: adminPulse 3s ease-in-out infinite,
+		adminGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes adminPulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 rgba(237, 137, 54, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+	50% {
+		box-shadow: 0 0 0 12px rgba(237, 137, 54, 0), 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+}
+
+/* Стили для имени пользователя */
+.user-info-label {
+	background: linear-gradient(
+		135deg,
+		rgba(255, 255, 255, 0.95),
+		rgba(247, 250, 252, 0.95)
+	);
+	backdrop-filter: blur(4px);
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	border-radius: 6px;
+	padding: 3px 6px;
+	margin-top: 4px;
+	font-size: 10px;
+	font-weight: 600;
+	color: #2d3748;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+	transition: all 0.3s ease;
+}
+
+.user-info-label:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.user-info-label.admin-label {
+	background: linear-gradient(
+		135deg,
+		rgba(254, 215, 170, 0.95),
+		rgba(251, 211, 141, 0.95)
+	);
+	border: 1px solid rgba(237, 137, 54, 0.3);
+	color: #744210;
+}
+
+/* Стили для надписи Staff (старая версия - можно удалить) */
+.staff-label {
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	margin-bottom: 3px;
+	background: linear-gradient(
+		45deg,
+		#c084fc,
+		#e879f9,
+		#fbbf24,
+		#f59e0b,
+		#a855f7,
+		#9333ea,
+		#fbbf24,
+		#e879f9,
+		#c084fc
+	);
+	background-size: 400% 400%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: staffGradient 3s ease-in-out infinite;
+	-webkit-text-stroke: 0.5px rgba(75, 85, 99, 0.3);
+	text-shadow: -0.5px -0.5px 0 rgba(75, 85, 99, 0.2),
+		0.5px -0.5px 0 rgba(75, 85, 99, 0.2), -0.5px 0.5px 0 rgba(75, 85, 99, 0.2),
+		0.5px 0.5px 0 rgba(75, 85, 99, 0.2), 0 0 4px rgba(168, 85, 247, 0.4);
+	filter: drop-shadow(0 1px 2px rgba(168, 85, 247, 0.1));
+}
+
+/* Стили для curved текста Staff */
+.staff-curved-text {
+	fill: url(#staffGradientSVG);
+	stroke: rgba(75, 85, 99, 0.4);
+	stroke-width: 0.5;
+	text-transform: uppercase;
+	animation: staffGradientSVG 3s ease-in-out infinite;
+	filter: drop-shadow(0 1px 2px rgba(168, 85, 247, 0.15));
+}
+
+/* Стили для badge Staff */
+.staff-badge {
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	background: linear-gradient(135deg, #c084fc, #e879f9, #fbbf24, #f59e0b);
+	background-size: 200% 200%;
+	animation: staffBadgeGlow 3s ease-in-out infinite;
+	color: white;
+	font-size: 8px;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: 2px 4px;
+	border-radius: 8px;
+	border: 1.5px solid rgba(255, 255, 255, 0.9);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.1);
+	z-index: 3;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+	min-width: 22px;
+	text-align: center;
+	backdrop-filter: blur(2px);
+}
+
+@keyframes staffBadgeGlow {
+	0% {
+		background-position: 0% 50%;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.1);
+	}
+	50% {
+		background-position: 100% 50%;
+		box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4),
+			0 0 0 1px rgba(168, 85, 247, 0.2);
+	}
+	100% {
+		background-position: 0% 50%;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.1);
+	}
+}
+
+@keyframes staffGradient {
+	0% {
+		background-position: 0% 50%;
+	}
+	20% {
+		background-position: 25% 25%;
+	}
+	40% {
+		background-position: 75% 0%;
+	}
+	60% {
+		background-position: 100% 75%;
+	}
+	80% {
+		background-position: 50% 100%;
+	}
+	100% {
+		background-position: 0% 50%;
+	}
+}

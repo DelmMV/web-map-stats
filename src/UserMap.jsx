@@ -178,46 +178,72 @@ const OptimizedMarker = memo(
 
 // Оптимизированный компонент маркера активного пользователя
 const OptimizedActiveUserMarker = memo(
-	({ user }) => {
+	({ user, admins }) => {
+		// Проверяем является ли пользователь админом
+		const isUserAdmin = admins && admins.includes(user.userId)
+
+		// Определяем время последней активности для анимации пульса
+		const isRecentlyActive = Date.now() - user.lastActive * 1000 < 300000 // 5 минут
+
 		// Мемоизируем иконку пользователя
 		const userIcon = useMemo(() => {
+			const labelClasses = ['user-info-label', isUserAdmin ? 'admin-label' : '']
+				.filter(Boolean)
+				.join(' ')
+
 			return L.divIcon({
 				className: 'active-user-marker',
 				html: `
-					<div style="display: flex; flex-direction: column; align-items: center;">
-					<div style="width: 45px; height: 45px; border-radius: 50%; overflow: hidden; border: 2px solid white; background-image: url('/pwa-192.png'); background-size: cover;">
-                      <img 
-                        src="${user.avatarUrl}" 
-                        alt="${user.username}" 
-                        style="width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s;"
-                        onload="this.style.opacity = 1;"
-                        onerror="this.style.display = 'none';"
-                      >
-                  </div>
-					<div style="background-color: rgba(255, 255, 255, 0.7); padding: 2px 4px; border-radius: 3px; margin-top: 2px; font-size: 10px;">
-						${user.username || 'Пользователь'}
-						${user.averageSpeed.toFixed(0)} км/ч
-					</div>
+					<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
+						<div style="position: relative; width: 55px; height: 55px;">
+							${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
+							<img 
+								src="${user.avatarUrl || '/pwa-192.png'}" 
+								alt="${user.username}" 
+								class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
+					isRecentlyActive ? 'user-marker-active' : ''
+				}"
+								style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; opacity: 0; transition: opacity 0.3s; background-image: url('/pwa-192.png'); background-size: cover;"
+								onload="this.style.opacity = 1;"
+								onerror="this.style.opacity = 0; console.log('Avatar failed to load for ${
+									user.username
+								}:', '${user.avatarUrl}');"
+							>
+						</div>
+						<div class="${labelClasses}">
+							${user.username || 'Пользователь'}
+							<br>
+							${user.averageSpeed.toFixed(0)} км/ч
+						</div>
 					</div>
 				`,
-				iconSize: [40, 50],
-				iconAnchor: [20, 50],
+				iconSize: [80, 85],
+				iconAnchor: [40, 85],
 			})
-		}, [user.avatarUrl, user.username, user.averageSpeed])
+		}, [
+			user.avatarUrl,
+			user.username,
+			user.averageSpeed,
+			isUserAdmin,
+			isRecentlyActive,
+		])
 
 		return (
 			<Marker position={[user.latitude, user.longitude]} icon={userIcon}>
 				<Popup>
-					Активный пользователь: {user.username || 'Неизвестный'}
+					{isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}
+					{user.username || 'Неизвестный'}
 					<br />
 					Последняя активность:{' '}
 					{new Date(user.lastActive * 1000).toLocaleString()}
+					<br />
+					Средняя скорость: {user.averageSpeed.toFixed(1)} км/ч
 				</Popup>
 			</Marker>
 		)
 	},
 	(prevProps, nextProps) => {
-		// Ре-рендерим только если изменились ключевые свойства пользователя
+		// Ре-рендерим только если изменились ключевые свойства пользователя или список админов
 		return (
 			prevProps.user.userId === nextProps.user.userId &&
 			prevProps.user.latitude === nextProps.user.latitude &&
@@ -225,7 +251,8 @@ const OptimizedActiveUserMarker = memo(
 			prevProps.user.averageSpeed === nextProps.user.averageSpeed &&
 			prevProps.user.lastActive === nextProps.user.lastActive &&
 			prevProps.user.username === nextProps.user.username &&
-			prevProps.user.avatarUrl === nextProps.user.avatarUrl
+			prevProps.user.avatarUrl === nextProps.user.avatarUrl &&
+			JSON.stringify(prevProps.admins) === JSON.stringify(nextProps.admins)
 		)
 	}
 )
@@ -1311,7 +1338,11 @@ const UserMap = ({ userId, admins }) => {
 						!activeUsersError &&
 						activeUsers &&
 						activeUsers.map(user => (
-							<OptimizedActiveUserMarker key={user.userId} user={user} />
+							<OptimizedActiveUserMarker
+								key={user.userId}
+								user={user}
+								admins={admins}
+							/>
 						))}
 
 					{showWeather && (
