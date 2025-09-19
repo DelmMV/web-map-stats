@@ -501,14 +501,14 @@ const PersistentUserMarkers = memo(
 
 						const marker = L.marker([user.latitude, user.longitude], { icon })
 						marker.bindPopup(`
-							${isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}${
+					${isUserAdmin ? 'Staff: ' : 'Активный пользователь: '}${
 							user.username || 'Неизвестный'
 						}
-							<br />
-							Последняя активность: ${new Date(user.lastActive * 1000).toLocaleString()}
-							<br />
-							Средняя скорость: ${user.averageSpeed.toFixed(1)} км/ч
-						`)
+					<br />
+					Последняя активность: ${new Date(user.lastActive * 1000).toLocaleString()}
+					<br />
+					Средняя скорость: ${user.averageSpeed.toFixed(1)} км/ч
+				`)
 
 						marker.addTo(map)
 						currentMarkers.set(user.userId, marker)
