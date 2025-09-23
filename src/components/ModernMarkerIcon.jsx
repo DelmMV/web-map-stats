@@ -15,7 +15,7 @@ const createModernMarkerIcon = ({
 	color = '#4285f4',
 	iconPath = '',
 	isPulsing = false,
-	size = [24, 30],
+	size = [18, 24],
 	className = '',
 }) => {
 	const uniqueId = `marker-${type}-${Math.random().toString(36).substr(2, 9)}`
@@ -29,7 +29,7 @@ const createModernMarkerIcon = ({
 		-20
 	)} 100%);">
 				<div class="marker-icon">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+					<svg width="10" height="10" viewBox="0 0 24 24" fill="none">
 						${iconPath}
 					</svg>
 				</div>
@@ -182,7 +182,7 @@ export const createRouteStartMarker = (color = '#4285f4', options = {}) =>
 	createModernMarkerIcon({
 		iconPath: `<polygon points="12,2 22,22 12,18 2,22" fill="white" stroke="none"/>`,
 		color: color,
-		size: [24, 30],
+		size: [18, 24],
 		className: 'route-start-marker',
 		...options,
 		type: 'route-start',
@@ -192,7 +192,7 @@ export const createRouteEndMarker = (color = '#EA4335', options = {}) =>
 	createModernMarkerIcon({
 		iconPath: `<rect x="6" y="6" width="12" height="12" fill="white" stroke="none"/>`,
 		color: color,
-		size: [24, 30],
+		size: [18, 24],
 		className: 'route-end-marker',
 		...options,
 		type: 'route-end',

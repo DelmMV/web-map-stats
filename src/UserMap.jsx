@@ -231,7 +231,7 @@ const PersistentUserMarkers = memo(
 
 				return `
 			<div style="display: flex; flex-direction: column; align-items: center; position: relative;">
-				<div class="avatar-container" style="position: relative; width: 45px; height: 45px;">
+				<div class="avatar-container" style="position: relative; width: 42px; height: 42px;">
 					${isUserAdmin ? `<div class="staff-badge">STAFF</div>` : ''}
 										<img 
 							src="/masked-icon.svg" 
@@ -240,7 +240,7 @@ const PersistentUserMarkers = memo(
 							class="${isUserAdmin ? 'user-marker-admin' : 'user-marker-regular'} ${
 					isRecentlyActive ? 'user-marker-active' : ''
 				} user-avatar"
-							style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background: transparent;"
+							style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; opacity: 1; transition: opacity 0.3s; background: transparent;"
 							onload="(function(img){const a=img.getAttribute('data-avatar');if(a){const i=new Image();i.onload=function(){img.src=a};i.onerror=function(){img.src='/masked-icon.svg'};i.src=a}})(this)"
 							onerror="this.src='/masked-icon.svg'"
 					>
@@ -499,8 +499,8 @@ const PersistentUserMarkers = memo(
 						const icon = L.divIcon({
 							className: 'active-user-marker',
 							html: markerHTML,
-							iconSize: [60, 75],
-							iconAnchor: [30, 75],
+							iconSize: [55, 70],
+							iconAnchor: [27, 70],
 						})
 
 						const marker = L.marker([user.latitude, user.longitude], { icon })
@@ -571,8 +571,8 @@ const PersistentUserMarkers = memo(
 								const icon = L.divIcon({
 									className: 'active-user-cluster',
 									html: markerHTML,
-									iconSize: [70, 80],
-									iconAnchor: [35, 80],
+									iconSize: [65, 75],
+									iconAnchor: [32, 75],
 								})
 
 								const newMarker = L.marker([centerLat, centerLng], { icon })
@@ -648,8 +648,8 @@ const PersistentUserMarkers = memo(
 						const icon = L.divIcon({
 							className: 'active-user-cluster',
 							html: markerHTML,
-							iconSize: [70, 80],
-							iconAnchor: [35, 80],
+							iconSize: [65, 75],
+							iconAnchor: [32, 75],
 						})
 
 						const marker = L.marker([centerLat, centerLng], { icon })
@@ -1696,7 +1696,7 @@ const UserMap = ({ userId, admins }) => {
 	// Мемоизируем настройки кластера для лучшей производительности
 	const clusterOptions = useMemo(
 		() => ({
-			maxClusterRadius: currentZoom < 10 ? 120 : currentZoom < 12 ? 80 : 50,
+			maxClusterRadius: currentZoom < 10 ? 90 : currentZoom < 12 ? 60 : 40,
 			disableClusteringAtZoom: 15,
 			spiderfyOnMaxZoom: true,
 			showCoverageOnHover: false,

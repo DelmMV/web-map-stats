@@ -267,7 +267,7 @@
 /* Стили для обычных пользователей */
 .user-marker-regular {
 	position: relative;
-	border: 6px solid transparent;
+	border: 3px solid transparent;
 	background: linear-gradient(white, white) padding-box,
 		linear-gradient(135deg, #4299e1, #63b3ed) border-box !important;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -282,7 +282,7 @@
 /* Стили для админов */
 .user-marker-admin {
 	position: relative;
-	border: 6px solid transparent;
+	border: 3px solid transparent;
 	background: linear-gradient(white, white) padding-box,
 		linear-gradient(135deg, #fed7aa, #fbd38d, #ed8936) border-box !important;
 	background-size: 200% 200% !important;

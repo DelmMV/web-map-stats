@@ -33,8 +33,8 @@ const createModernClusterIcon = cluster => {
 	const size = getClusterSize(count)
 	const colors = CLUSTER_COLORS[size]
 
-	// Вычисляем радиус кластера в зависимости от количества маркеров (более компактные размеры)
-	const radius = Math.min(20 + Math.sqrt(count) * 1.5, 35)
+	// Вычисляем радиус кластера в зависимости от количества маркеров (уменьшенные размеры)
+	const radius = Math.min(15 + Math.sqrt(count) * 1.2, 26)
 	const iconSize = radius * 2
 
 	// Группируем маркеры по типам для мини-статистики
@@ -156,8 +156,8 @@ function getTypeColor(type) {
  */
 const createModernMarkerClusterGroup = (props, context) => {
 	const defaultOptions = {
-		// Настройки кластеризации
-		maxClusterRadius: 50,
+		// Настройки кластеризации (уменьшен радиус для более компактных кластеров)
+		maxClusterRadius: 40,
 		spiderfyOnMaxZoom: true,
 		showCoverageOnHover: false,
 		zoomToBoundsOnClick: true,
@@ -175,10 +175,10 @@ const createModernMarkerClusterGroup = (props, context) => {
 		// Кастомная функция создания иконки
 		iconCreateFunction: createModernClusterIcon,
 
-		// Настройки spiderfy
+		// Настройки spiderfy (уменьшенные расстояния)
 		spiderfyShapePositions: function (count, centerPt) {
-			const distanceFromCenter = 35
-			const markerDistance = 45
+			const distanceFromCenter = 25
+			const markerDistance = 35
 			const lineLength = (markerDistance * (count - 1)) / 2
 			const lineStart = centerPt.y - lineLength
 

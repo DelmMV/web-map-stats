@@ -8,13 +8,13 @@ const createClusterCustomIcon = cluster => {
 	const markers = cluster.getAllChildMarkers()
 	const count = markers.length
 	const strokeWidth = 0.3 // Уменьшаем толщину ободка с 0.5 до 0.3
-	const rMax = 30 // Максимальный радиус для кластера
+	const rMax = 22 // Уменьшаем максимальный радиус для кластера с 30 до 22
 
 	// Вычисляем радиус в зависимости от количества маркеров
 	const r =
 		rMax -
 		2 * strokeWidth -
-		(count < 10 ? 12 : count < 100 ? 8 : count < 1000 ? 4 : 0)
+		(count < 10 ? 8 : count < 100 ? 6 : count < 1000 ? 3 : 0)
 	const iconDim = (r + strokeWidth) * 2
 
 	// Группируем маркеры по типу

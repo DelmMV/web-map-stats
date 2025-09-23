@@ -34,14 +34,14 @@
 }
 
 .cluster-count {
-	font-size: 12px;
+	font-size: 10px;
 	font-weight: 600;
 	line-height: 1;
 	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .cluster-label {
-	font-size: 9px;
+	font-size: 8px;
 	font-weight: 500;
 	opacity: 0.8;
 	margin-top: 1px;
@@ -124,7 +124,7 @@
 
 /* Маленькие кластеры */
 .modern-cluster[data-size='small'] .cluster-count {
-	font-size: 10px;
+	font-size: 9px;
 }
 
 .modern-cluster[data-size='small'] .cluster-background {
@@ -133,7 +133,7 @@
 
 /* Средние кластеры */
 .modern-cluster[data-size='medium'] .cluster-count {
-	font-size: 11px;
+	font-size: 10px;
 }
 
 .modern-cluster[data-size='medium'] .cluster-background {
@@ -142,7 +142,7 @@
 
 /* Большие кластеры */
 .modern-cluster[data-size='large'] .cluster-count {
-	font-size: 13px;
+	font-size: 11px;
 }
 
 .modern-cluster[data-size='large'] .cluster-background {
@@ -151,7 +151,7 @@
 
 /* Очень большие кластеры */
 .modern-cluster[data-size='xlarge'] .cluster-count {
-	font-size: 14px;
+	font-size: 12px;
 }
 
 .modern-cluster[data-size='xlarge'] .cluster-background {
@@ -203,23 +203,23 @@
 /* Адаптивность для мобильных устройств */
 @media (max-width: 768px) {
 	.cluster-count {
-		font-size: 10px;
+		font-size: 8px;
 	}
 
 	.cluster-label {
-		font-size: 7px;
+		font-size: 6px;
 	}
 
 	.modern-cluster[data-size='medium'] .cluster-count {
-		font-size: 10px;
+		font-size: 9px;
 	}
 
 	.modern-cluster[data-size='large'] .cluster-count {
-		font-size: 11px;
+		font-size: 10px;
 	}
 
 	.modern-cluster[data-size='xlarge'] .cluster-count {
-		font-size: 12px;
+		font-size: 11px;
 	}
 }
 
