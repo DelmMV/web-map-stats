@@ -38,11 +38,6 @@ export default [
       'react/prop-types': 'off',
       'react/display-name': 'off',
       'react-refresh/only-export-components': 'off',
-      'react-hooks/rules-of-hooks': 'warn',
-      'react-hooks/exhaustive-deps': 'warn',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-undef': 'warn',
-      'no-constant-condition': ['warn', { checkLoops: false }],
       'no-case-declarations': 'off',
     },
     settings: {
