@@ -36,7 +36,7 @@ const createClusterCustomIcon = cluster => {
 		}
 
 		const markerType = marker.options.markerType || 'charging'
-		if (markerTypes.hasOwnProperty(markerType)) {
+if (Object.hasOwn(markerTypes, markerType)) {
 			markerTypes[markerType]++
 		} else {
 			markerTypes.charging++
