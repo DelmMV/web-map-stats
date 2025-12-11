@@ -1,13 +1,8 @@
-import { AddIcon, HamburgerIcon } from '@chakra-ui/icons'
 import {
 	Box,
-	Drawer,
-	DrawerBody,
-	DrawerCloseButton,
-	DrawerContent,
-	DrawerHeader,
-	DrawerOverlay,
 	IconButton,
+	Text,
+	useBreakpointValue,
 	useDisclosure,
 	useToast,
 } from '@chakra-ui/react'
@@ -27,7 +22,8 @@ import React, {
 	useRef,
 	useState,
 } from 'react'
-import { FaCloudSun, FaLocationArrow, FaUsers } from 'react-icons/fa'
+import { motion } from 'framer-motion'
+import { FaLocationArrow, FaMapMarkedAlt, FaUsers } from 'react-icons/fa'
 import { HiLocationMarker } from 'react-icons/hi'
 import {
 	LayersControl,
@@ -40,6 +36,7 @@ import {
 } from 'react-leaflet'
 import HeatmapLayer from './components/HeatmapLayer'
 import MarkerFilterControl from './components/MarkerFilterControl'
+import MobileTooltip from './components/MobileTooltip'
 import ModernMarkerClusterGroup from './components/ModernMarkerCluster'
 import {
 	createCharging24Marker,
@@ -53,11 +50,28 @@ import {
 	createUserMarker,
 	createWorkshopMarker,
 } from './components/ModernMarkerIcon'
-import PerformanceStats from './components/PerformanceStats'
-import WeatherLayer from './components/WeatherLayer'
-import WeatherWidget from './components/WeatherWidget'
+import HeatmapControl from './components/HeatmapControl'
 import routesReducer from './hooks/routesReducer'
 import { useTelegramUser } from './hooks/useTelegramUser'
+import { useSharedRoutesCatalog } from './hooks/useSharedRoutesCatalog'
+import { resolveRouteAuthor } from './utils/routeFormatters'
+import ManualRoutePanel from './components/ManualRoutePanel'
+import DrawerMenuContainer from './components/DrawerMenuContainer'
+import MapTopControls from './components/MapTopControls'
+import { useManualRoutePanelState } from './hooks/useManualRoutePanelState'
+import { useManualRouteState } from './hooks/useManualRouteState'
+import { useManualRouteActions } from './hooks/useManualRouteActions'
+import { useManualRouteEditing } from './hooks/useManualRouteEditing'
+import { useManualRouteSaving } from './hooks/useManualRouteSaving'
+import { useSidebarPosition } from './hooks/useSidebarPosition'
+import { useDrawerMenuProps } from './hooks/useDrawerMenuProps'
+import { useFloatingControlsPosition } from './hooks/useFloatingControlsPosition'
+import {
+	DEFAULT_MANUAL_ROUTE_COLOR,
+	MANUAL_ROUTE_PROFILES,
+	getManualRouteProfileConfig,
+} from './utils/manualRouteProfiles'
+import { useManualRouteDerived } from './hooks/useManualRouteDerived'
 
 import { debounce } from 'lodash'
 import {
@@ -67,10 +81,27 @@ import {
 	updateChargingStation,
 } from './services/chargingStationService'
 import { fetchHeatmapData } from './services/heatmapService'
+import {
+	fetchUserProfile,
+	fetchUserRoutes,
+	saveUserRoute,
+	deleteUserRoute,
+	updateUserProfile,
+} from './services/profileService'
+import { deleteSharedRouteRecord } from './services/sharedRouteService'
 import { fetchRoute } from './services/routeService'
 import { useActiveUsers } from './services/userService'
+import { API_CONFIG } from './utils/config'
+import {
+	SHARED_ROUTE_QUERY_KEY,
+	SHARED_ROUTE_ID_QUERY_KEY,
+} from './utils/sharedRoute'
+import { useSharedRoutePreview } from './hooks/useSharedRoutePreview'
+import {
+	baseIconButtonStyles,
+	motionButtonProps,
+} from './styles/buttonStyles'
 
-const DrawerMenu = lazy(() => import('./components/DrawerMenu'))
 const AddStationModal = lazy(() => import('./components/AddStationModal'))
 const EditStationModal = lazy(() => import('./components/EditStationModal'))
 const StationModal = lazy(() => import('./components/StationModal'))
@@ -83,8 +114,207 @@ const GEOLOCATION_OPTIONS = {
 	maximumAge: 0,
 }
 const DEFAULT_MAP_CENTER = [59.938676, 30.314487]
+const loadPreferredCityCoords = () => {
+	if (typeof window === 'undefined') return null
+	try {
+		const raw = localStorage.getItem(PREFERRED_CITY_STORAGE_KEY)
+		if (!raw) return null
+		const parsed = JSON.parse(raw)
+		if (
+			parsed &&
+			typeof parsed.lat === 'number' &&
+			typeof parsed.lng === 'number'
+		) {
+			return parsed
+		}
+	} catch (error) {
+		console.error('Error reading preferred city:', error)
+	}
+	return null
+}
+const PREFERRED_CITY_STORAGE_KEY = 'preferredCityCoords'
 const DEFAULT_MAP_ZOOM = 10
 const HEATMAP_DEBOUNCE_TIME = 300
+const WEATHER_BUTTON_OFFSET = 30
+const API_BASE_URL = API_CONFIG.BASE_URL
+const RECENT_TRACK_COLORS = ['#F97316', '#3B82F6', '#10B981', '#F59E0B', '#6366F1']
+const formatDistanceLabel = distanceMeters => {
+	if (!distanceMeters || Number.isNaN(distanceMeters)) {
+		return '0 м'
+	}
+	if (distanceMeters >= 1000) {
+		const km = distanceMeters / 1000
+		return `${km >= 10 ? km.toFixed(0) : km.toFixed(1)} км`
+	}
+	return `${Math.max(1, Math.round(distanceMeters))} м`
+}
+
+
+const computeWaypointDistancesFromPath = (pathPositions, waypoints) => {
+	if (
+		!Array.isArray(pathPositions) ||
+		pathPositions.length < 2 ||
+		!Array.isArray(waypoints) ||
+		waypoints.length < 2
+	) {
+		return []
+	}
+
+	const waypointIndexes = []
+	let searchStartIndex = 0
+
+	waypoints.forEach(point => {
+		let bestIndex = searchStartIndex
+		let bestDistance = Infinity
+		for (let i = searchStartIndex; i < pathPositions.length; i++) {
+			const candidate = pathPositions[i]
+			const dist = haversine(
+				{ lat: candidate[0], lon: candidate[1] },
+				{ lat: point.lat, lon: point.lng }
+			)
+			if (dist < bestDistance) {
+				bestDistance = dist
+				bestIndex = i
+			}
+			if (dist <= 3) {
+				break
+			}
+		}
+		waypointIndexes.push(bestIndex)
+		searchStartIndex = bestIndex
+	})
+
+	const distances = []
+	for (let i = 1; i < waypointIndexes.length; i++) {
+		const startIndex = waypointIndexes[i - 1]
+		const endIndex = waypointIndexes[i]
+		if (endIndex <= startIndex) {
+			distances.push(0)
+			continue
+		}
+		let distance = 0
+		for (let j = startIndex; j < endIndex; j++) {
+			const current = pathPositions[j]
+			const next = pathPositions[j + 1]
+			if (!next) break
+			distance += haversine(
+				{ lat: current[0], lon: current[1] },
+				{ lat: next[0], lon: next[1] }
+			)
+		}
+		distances.push(distance)
+	}
+
+	return distances
+}
+
+const ROUTE_PATH_CACHE_KEY = 'manualRoutePaths'
+
+const loadRoutePathCache = () => {
+	if (typeof window === 'undefined') return {}
+	try {
+		const raw = localStorage.getItem(ROUTE_PATH_CACHE_KEY)
+		return raw ? JSON.parse(raw) : {}
+	} catch (error) {
+		console.error('Failed to read route path cache', error)
+		return {}
+	}
+}
+
+const saveRoutePathCache = cache => {
+	if (typeof window === 'undefined') return
+	try {
+		localStorage.setItem(ROUTE_PATH_CACHE_KEY, JSON.stringify(cache))
+	} catch (error) {
+		console.error('Failed to write route path cache', error)
+	}
+}
+
+const getCachedRoutePath = routeId => {
+	if (!routeId) return null
+	const cache = loadRoutePathCache()
+	return Array.isArray(cache[routeId]) ? cache[routeId] : null
+}
+
+const setCachedRoutePath = (routeId, coords) => {
+	if (!routeId || !Array.isArray(coords) || coords.length < 2) return
+	const cache = loadRoutePathCache()
+	cache[routeId] = coords
+	saveRoutePathCache(cache)
+}
+
+const removeCachedRoutePath = routeId => {
+	if (!routeId) return
+	const cache = loadRoutePathCache()
+	if (cache[routeId]) {
+		delete cache[routeId]
+		saveRoutePathCache(cache)
+	}
+}
+
+const DEFAULT_SURFACE_BY_PROFILE = {
+	cycling: ['bike_lanes', 'road'],
+	walking: ['sidewalks', 'forest'],
+	driving: ['road'],
+}
+
+const buildPathCoordinatesForWaypoints = async (waypoints, profileValue) => {
+	if (!Array.isArray(waypoints) || waypoints.length < 2) return []
+	const profileConfig = getManualRouteProfileConfig(profileValue)
+	const query = waypoints
+		.map(point => `${point.longitude},${point.latitude}`)
+		.join(';')
+	const requestUrl = `${profileConfig.baseUrl}/route/v1/${profileConfig.apiProfile}/${query}?overview=full&geometries=geojson`
+	const response = await fetch(requestUrl)
+	if (!response.ok) {
+		throw new Error('Не удалось восстановить маршрут')
+	}
+	const data = await response.json()
+	const geometry = data?.routes?.[0]?.geometry?.coordinates
+	if (!Array.isArray(geometry) || geometry.length < 2) {
+		return []
+	}
+	return geometry.map(([lon, lat]) => ({
+		latitude: lat,
+		longitude: lon,
+	}))
+}
+
+const createManualRoutePointIcon = color =>
+	L.divIcon({
+		className: 'manual-route-point-icon',
+		html: `<div style="
+				width: 12px;
+				height: 12px;
+				border-radius: 50%;
+				background: ${color};
+				border: 2px solid #fff;
+				box-shadow: 0 0 4px rgba(0,0,0,0.4);
+			"></div>`,
+		iconSize: [12, 12],
+		iconAnchor: [6, 6],
+	})
+
+const createDistanceLabelIcon = (color, label) =>
+	L.divIcon({
+		className: 'manual-route-distance-label',
+		html: `<div style="
+			transform: translate(-50%, -150%);
+			background: rgba(255,255,255,0.98);
+			padding: 4px 10px;
+			min-width: 56px;
+			text-align: center;
+			border-radius: 18px;
+			border: 2px solid ${color};
+			box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+			font-size: 12px;
+			color: #0f172a;
+			font-weight: 600;
+			line-height: 1.1;
+			white-space: nowrap;
+		">${label}</div>`,
+		iconSize: [0, 0],
+	})
 
 // Оптимизированный компонент маркера для предотвращения ненужных перерисовок
 const OptimizedMarker = memo(
@@ -789,38 +1019,48 @@ const PersistentUserMarkers = memo(
 	}
 )
 
-const UserMap = ({ userId, admins }) => {
-	// Защита от undefined userId
-	if (!userId) {
-		return (
-			<div
-				style={{
-					display: 'flex',
-					justifyContent: 'center',
-					alignItems: 'center',
-					height: '100vh',
-				}}
-			>
-				Loading user data...
-			</div>
-		)
-	}
+const UserMap = ({
+	userId,
+	admins,
+	isGuestMode = false,
+	onRequireAuth = null,
+}) => {
 
 	const user = useTelegramUser()
+	const isGuestView = isGuestMode || !userId
+	const canModifyMap = Boolean(userId)
+	const requireAuth = useCallback(() => {
+		if (typeof onRequireAuth === 'function') {
+			onRequireAuth()
+			return
+		}
+		if (typeof window !== 'undefined') {
+			window.location.replace('#/auth')
+		}
+	}, [onRequireAuth])
+
+	const buttonMotion = {
+		...motionButtonProps,
+	}
 
 	const today = new Date().toISOString().split('T')[0]
 	const [routesState, dispatch] = useReducer(routesReducer, {
 		data: {},
 		distances: {},
+		metadata: {},
 		visibleSessions: {},
 	})
-	const [dateRange, setDateRange] = useState({ start: today, end: today })
-	const [status, setStatus] = useState({ loading: false, error: null })
+	const [selectedDate, setSelectedDate] = useState(today)
+	const [trackStatus, setTrackStatus] = useState({
+		loading: false,
+		error: null,
+	})
 
 	const [chargingStations, setChargingStations] = useState([])
 	const [showChargingStations, setShowChargingStations] = useState(() => {
 		return JSON.parse(localStorage.getItem('showChargingStations') || 'false')
 	})
+	const [isEditMode, setIsEditMode] = useState(false)
 	const [showHeatmap, setShowHeatmap] = useState(false)
 	const [heatmapData, setHeatmapData] = useState([])
 	const [heatmapStatus, setHeatmapStatus] = useState({
@@ -830,6 +1070,118 @@ const UserMap = ({ userId, admins }) => {
 	const [heatmapPeriod, setHeatmapPeriod] = useState('this_month')
 	const [heatmapYear, setHeatmapYear] = useState(new Date().getFullYear())
 	const [heatmapMonth, setHeatmapMonth] = useState(new Date().getMonth() + 1)
+	const [selectedTrackIds, setSelectedTrackIds] = useState([])
+	const [lastFocusedTrackId, setLastFocusedTrackId] = useState(null)
+	const [recentTracks, setRecentTracks] = useState([])
+	const [recentTracksStatus, setRecentTracksStatus] = useState({
+		loading: false,
+		error: null,
+	})
+	const [recentTracksLoaded, setRecentTracksLoaded] = useState(false)
+	const [recentTrackRoutes, setRecentTrackRoutes] = useState({})
+const [profile, setProfile] = useState(null)
+const [profileStatus, setProfileStatus] = useState({
+	loading: false,
+	saving: false,
+	error: null,
+})
+	const authorName = useMemo(() => {
+		const profileName = profile?.username || profile?.name || profile?.displayName
+		const tgUsername = user?.username
+		const fullName = [user?.firstName, user?.lastName]
+			.filter(Boolean)
+			.join(' ')
+			.trim()
+		const fallbackId =
+			typeof userId === 'string' || typeof userId === 'number'
+				? String(userId)
+				: ''
+
+		return (
+			profileName ||
+			tgUsername ||
+			fullName ||
+		fallbackId
+	)
+}, [
+	profile?.username,
+	profile?.name,
+	profile?.displayName,
+	user?.username,
+	user?.firstName,
+	user?.lastName,
+	userId,
+])
+	const resolveSharedRouteAuthor = useCallback(
+		item =>
+			resolveRouteAuthor(item, {
+				currentUserId: userId,
+				currentUserName: authorName,
+			}),
+		[authorName, userId]
+	)
+const [savedRoutes, setSavedRoutes] = useState([])
+const [savedRoutesStatus, setSavedRoutesStatus] = useState({
+	loading: true,
+	error: null,
+})
+	const [visibleSavedRouteIds, setVisibleSavedRouteIds] = useState(() => {
+		try {
+			const stored = localStorage.getItem('visibleSavedRouteIds')
+			return stored ? JSON.parse(stored) : []
+		} catch (error) {
+			return []
+		}
+	})
+	useEffect(() => {
+		try {
+			localStorage.setItem(
+				'visibleSavedRouteIds',
+				JSON.stringify(visibleSavedRouteIds)
+			)
+		} catch (error) {
+			console.error('Error persisting saved route visibility:', error)
+		}
+	}, [visibleSavedRouteIds])
+	useEffect(() => {
+		setVisibleSavedRouteIds(prevIds => {
+			if (!savedRoutes || savedRoutes.length === 0) {
+				return prevIds.length ? [] : prevIds
+			}
+
+			const validIds = new Set(
+				savedRoutes.map(route => route.routeId).filter(Boolean)
+			)
+			const filtered = prevIds.filter(id => validIds.has(id))
+			if (filtered.length === prevIds.length) {
+				const unchanged = filtered.every((id, index) => id === prevIds[index])
+				return unchanged ? prevIds : filtered
+			}
+			return filtered
+		})
+	}, [savedRoutes])
+
+	useEffect(() => {
+		const handleStorage = event => {
+			if (event.key === 'visibleSavedRouteIds') {
+				try {
+					const parsed = event.newValue ? JSON.parse(event.newValue) : []
+					setVisibleSavedRouteIds(prev => {
+						const prevSerialized = JSON.stringify(prev)
+						const nextSerialized = JSON.stringify(parsed)
+						return prevSerialized === nextSerialized ? prev : parsed
+					})
+				} catch (error) {
+					console.error('Error syncing saved route visibility:', error)
+				}
+			}
+		}
+
+		window.addEventListener('storage', handleStorage)
+		return () => {
+			window.removeEventListener('storage', handleStorage)
+		}
+	}, [])
 
 	const {
 		data: activeUsers,
@@ -845,9 +1197,7 @@ const UserMap = ({ userId, admins }) => {
 	const [showActiveUsers, setShowActiveUsers] = useState(false)
 
 	// Состояния для погоды
-	const [showWeather, setShowWeather] = useState(() => {
-		return JSON.parse(localStorage.getItem('showWeather') || 'false')
-	})
+	
 
 	const [newStation, setNewStation] = useState(null)
 	const [isAddingStation, setIsAddingStation] = useState(false)
@@ -869,14 +1219,25 @@ const UserMap = ({ userId, admins }) => {
 		onClose: onEditClose,
 	} = useDisclosure()
 	const {
+		position: floatingControlsPosition,
+		handlePointerDown: handleFloatingControlsPointerDown,
+	} = useFloatingControlsPosition()
+	const {
 		isOpen: isDrawerOpen,
 		onOpen: onDrawerOpen,
 		onClose: onDrawerClose,
 	} = useDisclosure()
 	const toast = useToast()
 	const isAdmin = admins.includes(userId)
-	const carouselRef = useRef(null)
 	const mapRef = useRef(null)
+	const [preferredCityCoords, setPreferredCityCoords] = useState(() => {
+		const stored = loadPreferredCityCoords()
+		return stored
+	})
+	const [mapCenter, setMapCenter] = useState(() => {
+		const stored = loadPreferredCityCoords()
+		return stored ? [stored.lat, stored.lng] : DEFAULT_MAP_CENTER
+	})
 
 	const [mapLayer, setMapLayer] = useState(() => {
 		return localStorage.getItem('mapLayer') || 'default'
@@ -890,6 +1251,109 @@ const UserMap = ({ userId, admins }) => {
 	} = useDisclosure()
 
 	const [mapBounds, setMapBounds] = useState(null)
+	const [mapInstance, setMapInstance] = useState(null)
+	const {
+		manualRouteMode,
+		setManualRouteMode,
+		manualRoutePoints,
+		setManualRoutePoints,
+		manualRouteMeta,
+		setManualRouteMeta,
+		manualRouteStatus,
+		setManualRouteStatus,
+		manualRouteFollowRoads,
+		setManualRouteFollowRoads,
+		manualRoutePath,
+		setManualRoutePath,
+		manualRouteRoutingStatus,
+		setManualRouteRoutingStatus,
+		manualRouteLegDistances,
+		setManualRouteLegDistances,
+		manualRouteEditingRouteId,
+		setManualRouteEditingRouteId,
+		manualRouteProfile,
+	setManualRouteProfile,
+	} = useManualRouteState({ defaultColor: DEFAULT_MANUAL_ROUTE_COLOR })
+	const resetManualRouteFeedback = useCallback(() => {
+		setManualRouteStatus(prev => {
+			if (!prev.error && !prev.success) return prev
+			return { ...prev, error: null, success: false }
+		})
+	}, [setManualRouteStatus])
+const {
+	sharedRoutePreview,
+	sharedRouteError,
+	sharedRouteFetchStatus,
+	handleSharedRouteClear,
+} = useSharedRoutePreview()
+	const {
+		showSharedRoutesCatalog,
+		setShowSharedRoutesCatalog,
+		sharedRoutesCatalog,
+		sharedRoutesCatalogStatus,
+		loadSharedRoutesCatalog,
+		ensureSharedRoutesCatalogVisible,
+		handleRefreshSharedRoutesCatalog,
+	} = useSharedRoutesCatalog(toast)
+	const isCompactManualPanel = false
+	const isDesktopSidebar = useBreakpointValue({ base: false, md: true }) || false
+	const manualRoutePanelRef = useRef(null)
+	const manualRoutePanelDefaultLeft = useBreakpointValue({ base: 70, md: 90 })
+	const {
+		manualRoutePanelCollapsed,
+		manualRoutePanelPosition,
+		manualRoutePanelIsCollapsed,
+		handleManualRoutePanelToggle,
+		handleManualRoutePanelPointerDown,
+	} = useManualRoutePanelState({
+		manualRoutePanelDefaultLeft,
+		isCompactManualPanel,
+		manualRouteMode,
+		panelRef: manualRoutePanelRef,
+	})
+	const { sidebarPosition, handleSidebarPointerDown } = useSidebarPosition(
+		isDesktopSidebar
+	)
+
+const normalizeCoordinatePoint = point => {
+	if (!point) return [NaN, NaN]
+	if (Array.isArray(point) && point.length >= 2) {
+		return [Number(point[0]), Number(point[1])]
+	}
+	if (typeof point === 'object') {
+		if ('latitude' in point && 'longitude' in point) {
+			return [Number(point.latitude), Number(point.longitude)]
+		}
+		if ('lat' in point && 'lng' in point) {
+			return [Number(point.lat), Number(point.lng)]
+		}
+	}
+	return [NaN, NaN]
+}
+	const manualRoutePointDragLockRef = useRef(false)
+	const {
+		addManualRoutePoint,
+		updateManualRoutePoint,
+		removeManualRoutePoint,
+		insertManualRoutePoint,
+		handleManualRoutePolylineClick,
+	} = useManualRouteEditing({
+		manualRouteMode,
+		manualRoutePoints,
+		resetManualRouteFeedback,
+		setManualRoutePoints,
+	})
+
+	useEffect(() => {
+		const defaults = DEFAULT_SURFACE_BY_PROFILE[manualRouteProfile] || []
+		setManualRouteMeta(prev => ({
+			...prev,
+			surfaceTypes:
+				Array.isArray(prev.surfaceTypes) && prev.surfaceTypes.length > 0
+					? prev.surfaceTypes
+					: defaults,
+		}))
+	}, [manualRouteProfile, setManualRouteMeta])
 
 	// Добавляем эффект для синхронизации состояния с localStorage
 	useEffect(() => {
@@ -906,6 +1370,42 @@ const UserMap = ({ userId, admins }) => {
 			window.removeEventListener('storage', handleStorageChange)
 		}
 	}, [mapLayer])
+	useEffect(() => {
+		const handlePreferredCityStorage = event => {
+			if (event.key === PREFERRED_CITY_STORAGE_KEY) {
+				setPreferredCityCoords(loadPreferredCityCoords())
+			}
+		}
+		const handlePreferredCityEvent = event => {
+			const detail = event.detail
+			if (
+				detail &&
+				typeof detail.lat === 'number' &&
+				typeof detail.lng === 'number'
+			) {
+				setPreferredCityCoords(detail)
+			}
+		}
+		window.addEventListener('storage', handlePreferredCityStorage)
+		window.addEventListener('preferredCityChange', handlePreferredCityEvent)
+		return () => {
+			window.removeEventListener('storage', handlePreferredCityStorage)
+			window.removeEventListener('preferredCityChange', handlePreferredCityEvent)
+		}
+	}, [])
+	useEffect(() => {
+		if (
+			preferredCityCoords &&
+			typeof preferredCityCoords.lat === 'number' &&
+			typeof preferredCityCoords.lng === 'number'
+		) {
+			const nextCenter = [preferredCityCoords.lat, preferredCityCoords.lng]
+			setMapCenter(nextCenter)
+			if (mapRef.current) {
+				mapRef.current.setView(nextCenter, 12)
+			}
+		}
+	}, [preferredCityCoords])
 
 	const handleMapLayerChange = useCallback(newLayer => {
 		setMapLayer(newLayer)
@@ -916,13 +1416,185 @@ const UserMap = ({ userId, admins }) => {
 		setShowActiveUsers(prev => !prev)
 	}, [])
 
-	const toggleWeather = useCallback(() => {
-		setShowWeather(prev => {
-			const newValue = !prev
-			localStorage.setItem('showWeather', JSON.stringify(newValue))
-			return newValue
-		})
+	
+
+	const loadProfile = useCallback(async () => {
+		if (!userId) return
+		setProfileStatus(prev => ({ ...prev, loading: true, error: null }))
+		try {
+			const data = await fetchUserProfile(userId)
+			setProfile(data)
+			setSavedRoutes(Array.isArray(data?.routes) ? data.routes : [])
+			setProfileStatus(prev => ({ ...prev, loading: false }))
+		} catch (error) {
+			console.error('Error fetching profile:', error)
+			setProfileStatus(prev => ({
+				...prev,
+				loading: false,
+				error: error.message || 'Не удалось загрузить профиль',
+			}))
+		}
+	}, [userId])
+
+	const enhanceRoutesWithPaths = useCallback(async routes => {
+		return Promise.all(
+			routes.map(async route => {
+				const followRoads =
+					typeof route.followRoads === 'boolean' ? route.followRoads : true
+				if (
+					followRoads &&
+					(!Array.isArray(route.pathCoordinates) ||
+						route.pathCoordinates.length < 2) &&
+					Array.isArray(route.waypoints) &&
+					route.waypoints.length >= 2
+				) {
+					const cached = getCachedRoutePath(route.routeId)
+					if (cached && cached.length >= 2) {
+						return { ...route, pathCoordinates: cached }
+					}
+					try {
+						const coords = await buildPathCoordinatesForWaypoints(
+							route.waypoints,
+							route.routingProfile
+						)
+						if (coords.length >= 2) {
+							setCachedRoutePath(route.routeId, coords)
+							return { ...route, pathCoordinates: coords }
+						}
+					} catch (error) {
+						console.error('Error rebuilding route path:', route.routeId, error)
+					}
+				}
+				return route
+			})
+		)
 	}, [])
+
+	const loadSavedRoutes = useCallback(async () => {
+		if (!userId) return
+		setSavedRoutesStatus({ loading: true, error: null })
+		try {
+			const data = await fetchUserRoutes(userId)
+			if (Array.isArray(data)) {
+				const enhanced = await enhanceRoutesWithPaths(data)
+				setSavedRoutes(enhanced)
+			} else if (Array.isArray(data?.routes)) {
+				const enhanced = await enhanceRoutesWithPaths(data.routes)
+				setSavedRoutes(enhanced)
+			} else {
+				setSavedRoutes([])
+			}
+			setSavedRoutesStatus({ loading: false, error: null })
+		} catch (error) {
+			console.error('Error loading saved routes:', error)
+			setSavedRoutesStatus({
+				loading: false,
+				error: error.message || 'Не удалось загрузить маршруты',
+			})
+		}
+	}, [userId, enhanceRoutesWithPaths])
+
+	useEffect(() => {
+		const missingRoutes = savedRoutes.filter(route => {
+			const followRoads =
+				typeof route.followRoads === 'boolean' ? route.followRoads : true
+			return (
+				followRoads &&
+				(!Array.isArray(route.pathCoordinates) ||
+					route.pathCoordinates.length < 2) &&
+				Array.isArray(route.waypoints) &&
+				route.waypoints.length >= 2
+			)
+		})
+
+		if (!missingRoutes.length) {
+			return
+		}
+
+		let cancelled = false
+
+		const rebuildPaths = async () => {
+			const enhanced = await enhanceRoutesWithPaths(missingRoutes)
+			if (cancelled) return
+			const updates = new Map()
+			enhanced.forEach(route => {
+				if (
+					route?.routeId &&
+					Array.isArray(route.pathCoordinates) &&
+					route.pathCoordinates.length >= 2
+				) {
+					updates.set(route.routeId, route.pathCoordinates)
+					setCachedRoutePath(route.routeId, route.pathCoordinates)
+				}
+			})
+			if (!updates.size) {
+				return
+			}
+			setSavedRoutes(prev =>
+				prev.map(route =>
+					updates.has(route.routeId)
+						? { ...route, pathCoordinates: updates.get(route.routeId) }
+						: route
+				)
+			)
+		}
+
+		rebuildPaths()
+
+		return () => {
+			cancelled = true
+		}
+	}, [savedRoutes, enhanceRoutesWithPaths])
+
+	const handleProfileSave = useCallback(
+		async updates => {
+			if (!userId) return
+			setProfileStatus(prev => ({ ...prev, saving: true, error: null }))
+			try {
+				const data = await updateUserProfile(userId, updates)
+				if (data) {
+					setProfile(data)
+					if (Array.isArray(data.routes)) {
+						setSavedRoutes(data.routes)
+					}
+				}
+				setProfileStatus(prev => ({
+					...prev,
+					saving: false,
+					error: null,
+				}))
+				toast({
+					position: 'top-right',
+					title: 'Профиль сохранён',
+					status: 'success',
+					duration: 3000,
+					isClosable: true,
+				})
+			} catch (error) {
+				console.error('Error updating profile:', error)
+				setProfileStatus(prev => ({
+					...prev,
+					saving: false,
+					error: error.message || 'Не удалось сохранить профиль',
+				}))
+				toast({
+					position: 'top-right',
+					title: error.message || 'Не удалось сохранить профиль',
+					status: 'error',
+					duration: 3000,
+					isClosable: true,
+				})
+			}
+		},
+		[userId, toast]
+	)
+
+	useEffect(() => {
+		if (userId) {
+			loadProfile()
+		}
+	}, [userId, loadProfile])
+
 
 	// Инициализируем состояние фильтров из localStorage
 	const [markerFilters, setMarkerFilters] = useState(() => {
@@ -1013,6 +1685,187 @@ const UserMap = ({ userId, admins }) => {
 		setShowChargingStations(prev => !prev)
 	}, [])
 
+	const {
+		manualRoutePositions,
+		manualRouteDistanceKm,
+		manualRouteProfileLabel,
+		manualRouteSummaryDistance,
+		manualRouteControlSize,
+		manualRouteActionButtonSize,
+		manualRouteHasUndo,
+		manualRouteHasExistingRoute,
+		manualRouteSaveDisabled,
+		shouldShowManualRoutePanel,
+	} = useManualRouteDerived({
+		manualRoutePoints,
+		manualRoutePath,
+		manualRouteMeta,
+		manualRouteMode,
+		manualRouteStatus,
+		manualRouteProfile,
+		manualRouteFollowRoads,
+		canModifyMap,
+	})
+
+	useEffect(() => {
+		if ((manualRouteMode || isAddingStation) && !isEditMode) {
+			setIsEditMode(true)
+		}
+	}, [isAddingStation, isEditMode, manualRouteMode])
+
+	const canDragManualPoints = manualRouteMode || manualRouteEditingRouteId !== null
+	const manualRouteDistanceLabels = useMemo(() => {
+		if (!manualRoutePoints.length) return []
+		const color = manualRouteMeta.color || DEFAULT_MANUAL_ROUTE_COLOR
+		let cumulativeMeters = 0
+		return manualRoutePoints.map((point, index) => {
+		if (index > 0) {
+			cumulativeMeters += manualRouteLegDistances[index - 1] || 0
+		}
+		const label = formatDistanceLabel(cumulativeMeters)
+		return {
+			id: `manual-distance-${index}`,
+			position: [point.lat, point.lng],
+			icon: createDistanceLabelIcon(color, label),
+		}
+		})
+	}, [manualRoutePoints, manualRouteMeta.color, manualRouteLegDistances])
+
+	const manualRouteStartIcon = useMemo(
+		() => createRouteStartMarker(manualRouteMeta.color || DEFAULT_MANUAL_ROUTE_COLOR),
+		[manualRouteMeta.color]
+	)
+	const manualRouteEndIcon = useMemo(
+		() => createRouteEndMarker(manualRouteMeta.color || DEFAULT_MANUAL_ROUTE_COLOR),
+		[manualRouteMeta.color]
+	)
+	const manualRoutePointIcon = useMemo(
+		() => createManualRoutePointIcon(manualRouteMeta.color || DEFAULT_MANUAL_ROUTE_COLOR),
+		[manualRouteMeta.color]
+	)
+	useEffect(() => {
+		if (!mapInstance || !manualRouteMode) return
+		const handleMapClick = event => {
+			if (manualRoutePointDragLockRef.current) {
+				manualRoutePointDragLockRef.current = false
+				return
+			}
+			const { latlng } = event
+			if (!latlng) return
+			addManualRoutePoint(latlng)
+		}
+		mapInstance.on('click', handleMapClick)
+		return () => {
+			mapInstance.off('click', handleMapClick)
+		}
+	}, [addManualRoutePoint, manualRouteMode, mapInstance])
+
+	useEffect(() => {
+		if (!manualRouteMode && manualRoutePoints.length === 0) {
+			setManualRoutePath([])
+			setManualRouteLegDistances([])
+			setManualRouteRoutingStatus({ loading: false, error: null })
+			return
+		}
+
+		if (!manualRouteFollowRoads || manualRoutePoints.length < 2) {
+			setManualRoutePath(manualRoutePoints.map(point => [point.lat, point.lng]))
+			const fallbackLegs = manualRoutePoints.slice(1).map((point, index) =>
+				haversine(
+					{ lat: manualRoutePoints[index].lat, lon: manualRoutePoints[index].lng },
+					{ lat: point.lat, lon: point.lng }
+				)
+			)
+			setManualRouteLegDistances(fallbackLegs)
+			setManualRouteRoutingStatus({ loading: false, error: null })
+			return
+		}
+
+		const query = manualRoutePoints
+			.map(point => `${point.lng},${point.lat}`)
+			.join(';')
+
+		const controller = new AbortController()
+		setManualRouteRoutingStatus({ loading: true, error: null })
+
+		const profileConfig = getManualRouteProfileConfig(manualRouteProfile)
+		const requestUrl = `${profileConfig.baseUrl}/route/v1/${profileConfig.apiProfile}/${query}?overview=full&geometries=geojson`
+
+		fetch(requestUrl, {
+			signal: controller.signal,
+		})
+			.then(response => {
+				if (!response.ok) {
+					throw new Error('Маршрут недоступен')
+				}
+				return response.json()
+			})
+			.then(data => {
+				const route = data?.routes?.[0]
+				const geometry = route?.geometry?.coordinates
+				if (Array.isArray(geometry) && geometry.length >= 2) {
+					const positions = geometry.map(([lon, lat]) => [lat, lon])
+					setManualRoutePath(positions)
+					let legDistances = []
+					if (
+						Array.isArray(route?.legs) &&
+						route.legs.length === manualRoutePoints.length - 1
+					) {
+						legDistances = route.legs.map(leg => leg?.distance || 0)
+					} else {
+						legDistances = computeWaypointDistancesFromPath(
+							positions,
+							manualRoutePoints
+						)
+					}
+					setManualRouteLegDistances(legDistances)
+					setManualRouteRoutingStatus({ loading: false, error: null })
+				} else {
+					throw new Error('Не удалось построить маршрут')
+				}
+			})
+			.catch(error => {
+				if (controller.signal.aborted) return
+				console.error('Routing error:', error)
+				setManualRoutePath(manualRoutePoints.map(point => [point.lat, point.lng]))
+				const fallbackLegs = manualRoutePoints.slice(1).map((point, index) =>
+					haversine(
+						{ lat: manualRoutePoints[index].lat, lon: manualRoutePoints[index].lng },
+						{ lat: point.lat, lon: point.lng }
+					)
+				)
+				setManualRouteLegDistances(fallbackLegs)
+				setManualRouteRoutingStatus({
+					loading: false,
+					error: error.message || 'Не удалось проложить маршрут',
+				})
+			})
+
+		return () => {
+			controller.abort()
+		}
+		return () => {
+			controller.abort()
+		}
+	}, [
+		manualRoutePoints,
+		manualRouteFollowRoads,
+		manualRouteMode,
+		manualRouteProfile,
+	])
+
+	useEffect(() => {
+		if (!mapRef.current) return
+		const container = mapRef.current.getContainer()
+		if (!container) return
+		container.style.cursor = manualRouteMode ? 'crosshair' : ''
+		return () => {
+			if (container) {
+				container.style.cursor = ''
+			}
+		}
+	}, [manualRouteMode])
+
 	// const handleFilterChange = useCallback(newFilters => {
 	// 	setMarkerFilters(newFilters)
 	// }, [])
@@ -1031,6 +1884,7 @@ const UserMap = ({ userId, admins }) => {
 		try {
 			const data = await fetchChargingStations()
 			setChargingStations(data)
+			return data
 		} catch (error) {
 			console.error('Error fetching charging stations:', error)
 			toast({
@@ -1040,6 +1894,7 @@ const UserMap = ({ userId, admins }) => {
 				duration: 5000,
 				isClosable: true,
 			})
+			throw error
 		}
 	}, [toast])
 
@@ -1093,103 +1948,186 @@ const UserMap = ({ userId, admins }) => {
 			return acc
 		}, {})
 
-		const distances = Object.keys(groupedRoutes).reduce((acc, sessionId) => {
-			acc[sessionId] = groupedRoutes[sessionId].reduce(
-				(totalDistance, point, index, array) => {
-					if (index === 0) return totalDistance
-					const prevPoint = array[index - 1]
-					const currentDistance = haversine(
-						{ lat: prevPoint.latitude, lon: prevPoint.longitude },
-						{ lat: point.latitude, lon: point.longitude }
-					)
-					return totalDistance + currentDistance
-				},
-				0
-			)
-			return acc
-		}, {})
+		const distances = {}
+		const metadata = {}
 
-		return { groupedRoutes, distances }
-	}, [])
-
-	const fetchRouteData = useCallback(async () => {
-		const { start, end } = dateRange
-		setStatus({ loading: true, error: null })
-		dispatch({ type: 'CLEAR_ROUTES' })
-
-		try {
-			const startDate = new Date(start)
-			const endDate = new Date(end)
-			endDate.setHours(23, 59, 59, 999)
-
-			const data = await fetchRoute(userId, startDate, endDate)
-			if (data.length === 0) {
-				setStatus({
-					loading: false,
-					error: 'Маршрут не найден для указанного периода',
-				})
-			} else {
-				const { groupedRoutes, distances } = processRouteData(data)
-				dispatch({
-					type: 'SET_ROUTES',
-					payload: { data: groupedRoutes, distances },
-				})
-			}
-			setStatus({ loading: false, error: null })
-		} catch (error) {
-			toast({
-				position: 'top-right',
-				title: error.message,
-				status: 'info',
-				duration: 3000,
-				isClosable: true,
-			})
-			console.error('Error fetching route:', error)
-			setStatus({ loading: false, error: error.message })
-			dispatch({ type: 'CLEAR_ROUTES' })
-		}
-	}, [userId, dateRange, toast, processRouteData])
-
-	useEffect(() => {
-		if (dateRange.start && dateRange.end) {
-			fetchRouteData()
-		}
-	}, [fetchRouteData])
-
-	const handleDateChange = useCallback(e => {
-		const { name, value } = e.target
-		setDateRange(prev => ({ ...prev, [name]: value }))
-	}, [])
-
-	const handleSearch = useCallback(
-		e => {
-			e.preventDefault()
-
-			const startDate = new Date(dateRange.start)
-			const endDate = new Date(dateRange.end)
-			endDate.setHours(23, 59, 59, 999)
-
-			if (startDate > endDate) {
-				setStatus({
-					loading: false,
-					error: 'Дата начала должна быть раньше или равна дате окончания',
-				})
+		Object.keys(groupedRoutes).forEach(sessionId => {
+			const sessionPoints = groupedRoutes[sessionId]
+			if (!sessionPoints || sessionPoints.length === 0) {
+				distances[sessionId] = 0
+				metadata[sessionId] = {
+					startTimestamp: null,
+					endTimestamp: null,
+					durationMinutes: 0,
+					pointsCount: 0,
+				}
 				return
 			}
 
-			setDateRange({
-				start: startDate.toISOString().split('T')[0],
-				end: endDate.toISOString().split('T')[0],
-			})
+			const orderedPoints = [...sessionPoints].sort(
+				(a, b) => (a.timestamp || 0) - (b.timestamp || 0)
+			)
 
-			fetchRouteData()
+			let sessionDistance = 0
+			for (let i = 1; i < orderedPoints.length; i++) {
+				const prevPoint = orderedPoints[i - 1]
+				const currentPoint = orderedPoints[i]
+				sessionDistance += haversine(
+					{ lat: prevPoint.latitude, lon: prevPoint.longitude },
+					{ lat: currentPoint.latitude, lon: currentPoint.longitude }
+				)
+			}
+
+			const startTimestamp = orderedPoints[0].timestamp
+				? orderedPoints[0].timestamp * 1000
+				: null
+			const endTimestamp =
+				orderedPoints[orderedPoints.length - 1].timestamp
+					? orderedPoints[orderedPoints.length - 1].timestamp * 1000
+					: null
+			const durationMinutes =
+				startTimestamp && endTimestamp
+					? (endTimestamp - startTimestamp) / (1000 * 60)
+					: 0
+
+			distances[sessionId] = sessionDistance
+			metadata[sessionId] = {
+				startTimestamp,
+				endTimestamp,
+				durationMinutes,
+				pointsCount: orderedPoints.length,
+			}
+		})
+
+	return { groupedRoutes, distances, metadata }
+	}, [])
+
+useEffect(() => {
+	if (!userId) {
+		setRecentTracks([])
+		setRecentTrackRoutes({})
+		setRecentTracksStatus({ loading: false, error: null })
+		setRecentTracksLoaded(false)
+		return
+	}
+
+	if (!recentTracksLoaded) {
+		return
+	}
+
+		let isMounted = true
+	const fetchRecentTracks = async () => {
+			setRecentTracksStatus({ loading: true, error: null })
+			try {
+				const endDate = new Date()
+				const startDate = new Date()
+				startDate.setMonth(endDate.getMonth() - 3)
+
+				const data = await fetchRoute(userId, startDate, endDate)
+				if (!isMounted) return
+
+				if (!Array.isArray(data) || data.length === 0) {
+					setRecentTracks([])
+					setRecentTrackRoutes({})
+					setRecentTracksStatus({ loading: false, error: null })
+					return
+				}
+
+				const { metadata, distances, groupedRoutes } = processRouteData(data)
+				const recentList = Object.entries(metadata)
+					.map(([sessionId, meta]) => ({
+						sessionId,
+						...meta,
+						distance: distances[sessionId] || 0,
+					}))
+					.sort((a, b) => (b.endTimestamp || 0) - (a.endTimestamp || 0))
+
+				const routesMap = recentList.reduce((acc, track) => {
+					acc[track.sessionId] = groupedRoutes[track.sessionId] || []
+					return acc
+				}, {})
+
+				setRecentTracks(recentList)
+				setRecentTrackRoutes(routesMap)
+				setRecentTracksStatus({ loading: false, error: null })
+			} catch (error) {
+				if (!isMounted) return
+				console.error('Error fetching recent tracks:', error)
+				setRecentTracks([])
+				setRecentTrackRoutes({})
+				setRecentTracksStatus({
+					loading: false,
+					error: 'Не удалось загрузить последние треки',
+				})
+			}
+		}
+
+		fetchRecentTracks()
+
+		return () => {
+			isMounted = false
+		}
+	}, [userId, processRouteData, recentTracksLoaded])
+
+	const fetchRouteData = useCallback(
+		async targetDate => {
+			if (!userId) {
+				setTrackStatus({ loading: false, error: null })
+				dispatch({ type: 'CLEAR_ROUTES' })
+				setSelectedTrackIds([])
+				setLastFocusedTrackId(null)
+				return
+			}
+			const dateString = targetDate || selectedDate
+			setTrackStatus({ loading: true, error: null })
+			dispatch({ type: 'CLEAR_ROUTES' })
+
+			try {
+				const startDate = new Date(dateString)
+				const endDate = new Date(dateString)
+				endDate.setHours(23, 59, 59, 999)
+
+				const data = await fetchRoute(userId, startDate, endDate)
+				if (data.length === 0) {
+					setTrackStatus({
+						loading: false,
+						error: 'Треки не найдены за выбранную дату',
+					})
+					setSelectedTrackIds([])
+					setLastFocusedTrackId(null)
+				} else {
+					const { groupedRoutes, distances, metadata } = processRouteData(data)
+					dispatch({
+						type: 'SET_ROUTES',
+						payload: { data: groupedRoutes, distances, metadata },
+					})
+					setSelectedTrackIds([])
+					setLastFocusedTrackId(null)
+					setTrackStatus({ loading: false, error: null })
+				}
+			} catch (error) {
+				console.error('Error fetching route:', error)
+				setTrackStatus({ loading: false, error: error.message })
+				dispatch({ type: 'CLEAR_ROUTES' })
+				setSelectedTrackIds([])
+				setLastFocusedTrackId(null)
+			}
 		},
-		[dateRange, fetchRouteData]
+		[userId, selectedDate, processRouteData]
 	)
 
-	const toggleSession = useCallback(sessionId => {
-		dispatch({ type: 'TOGGLE_SESSION', payload: sessionId })
+	useEffect(() => {
+		if (selectedDate) {
+			fetchRouteData(selectedDate)
+		}
+	}, [selectedDate, fetchRouteData])
+
+	const handleDateChange = useCallback(e => {
+		if (e.target.value) {
+			setSelectedDate(e.target.value)
+		}
 	}, [])
+
 
 	const handleHeatmapPeriodChange = useCallback(e => {
 		setHeatmapPeriod(e.target.value)
@@ -1202,8 +2140,13 @@ const UserMap = ({ userId, admins }) => {
 	}, [])
 
 	const handleAddStationClick = useCallback(() => {
+		if (!canModifyMap) {
+			requireAuth()
+			return
+		}
+		setIsEditMode(true)
 		setIsAddingStation(true)
-	}, [])
+	}, [canModifyMap, requireAuth])
 
 	const handleMapClick = useCallback(
 		latlng => {
@@ -1289,6 +2232,12 @@ const UserMap = ({ userId, admins }) => {
 			formData.append('is24Hours', stationData.is24Hours)
 			formData.append('markerType', stationData.markerType)
 			formData.append('comment', stationData.comment)
+			formData.append(
+				'isOffline',
+				typeof stationData.isOffline !== 'undefined'
+					? stationData.isOffline
+					: false
+			)
 			formData.append('userId', userId)
 			formData.append(
 				'addedBy',
@@ -1346,6 +2295,12 @@ const UserMap = ({ userId, admins }) => {
 			formData.append('is24Hours', updatedData.is24Hours)
 			formData.append('markerType', updatedData.markerType)
 			formData.append('comment', updatedData.comment)
+			formData.append(
+				'isOffline',
+				typeof updatedData.isOffline !== 'undefined'
+					? updatedData.isOffline
+					: editingStation.isOffline || false
+			)
 			formData.append('userId', userId)
 			if (updatedData.photo) {
 				const compressedPhoto = await compressImage(updatedData.photo)
@@ -1378,172 +2333,600 @@ const UserMap = ({ userId, admins }) => {
 		[editingStation, userId, fetchChargingStationsData, onEditClose, toast]
 	)
 
-	const handleScroll = useCallback(direction => {
-		if (carouselRef.current) {
-			const scrollAmount = direction === 'left' ? -200 : 200
-			carouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
-		}
+	const normalizeStationId = useCallback(
+		station => station?._id ?? station?.id ?? station?.stationId,
+		[]
+	)
+
+	const computeIsOffline = useCallback(station => {
+		return (
+			station?.isOffline === true ||
+			station?.isOffline === 'true' ||
+			station?.isOffline === 1 ||
+			station?.isOffline === '1'
+		)
 	}, [])
 
-	const sessionColors = useMemo(() => {
-		if (!routesState.data || Object.keys(routesState.data).length === 0)
-			return []
+	const handleStationStatusChange = useCallback(
+		async (stationId, updatedStationData = null) => {
+			const targetId = stationId || normalizeStationId(updatedStationData)
 
-		return Object.keys(routesState.data).map((_, idx) => {
-			const hue = (idx * 60) % 360
-			return `hsl(${hue}, 100%, 30%)`
-		})
-	}, [routesState.data])
+			if (updatedStationData && targetId) {
+				setChargingStations(prev =>
+					prev.map(station =>
+						normalizeStationId(station) === targetId
+							? { ...station, ...updatedStationData, _id: targetId }
+							: station
+					)
+				)
+				setSelectedStation({ ...updatedStationData, _id: targetId })
+				// Перезагружаем данные станций, чтобы Leaflet получил обновленные иконки
+				fetchChargingStationsData().catch(error =>
+					console.error('Error refetching stations:', error)
+				)
+				return
+			}
 
-	const activeSessions = useMemo(() => {
-		return Object.keys(routesState.visibleSessions).filter(
-			sessionId => routesState.visibleSessions[sessionId]
-		)
-	}, [routesState.visibleSessions])
+			if (!targetId) return
+			try {
+				const updatedStations = await fetchChargingStationsData()
+				if (Array.isArray(updatedStations)) {
+					const updatedStation = updatedStations.find(
+						station => normalizeStationId(station) === targetId
+					)
+					if (updatedStation) {
+						setSelectedStation(updatedStation)
+					}
+				}
+			} catch (error) {
+				console.error('Error refreshing station status:', error)
+			}
+		},
+		[
+			fetchChargingStationsData,
+			setChargingStations,
+			setSelectedStation,
+			normalizeStationId,
+		]
+	)
 
-	const totalActiveDistance = useMemo(() => {
-		return activeSessions.reduce((total, sessionId) => {
-			return total + (routesState.distances[sessionId] || 0)
-		}, 0)
-	}, [activeSessions, routesState.distances])
+	const toggleHeatmapVisibility = useCallback(() => {
+		setShowHeatmap(prev => !prev)
+	}, [])
 
 	const startIcon = useMemo(() => createRouteStartMarker('#4285f4'), [])
 	const endIcon = useMemo(() => createRouteEndMarker('#EA4335'), [])
+	const availableTracks = useMemo(() => {
+		if (!routesState.metadata) return []
+		return Object.entries(routesState.metadata)
+			.map(([sessionId, meta]) => ({
+				sessionId,
+				...meta,
+				distance: routesState.distances[sessionId] || 0,
+			}))
+			.sort((a, b) => (b.endTimestamp || 0) - (a.endTimestamp || 0))
+	}, [routesState.metadata, routesState.distances])
+
+	const trackMetadataMap = useMemo(() => {
+		const map = new Map()
+		availableTracks.forEach(track => map.set(track.sessionId, track))
+		recentTracks.forEach(track => map.set(track.sessionId, track))
+		return map
+	}, [availableTracks, recentTracks])
+
+	const handleManualRouteMetaChange = useCallback(
+		(field, value) => {
+			resetManualRouteFeedback()
+			setManualRouteMeta(prev => {
+				if (field === 'surfaceTypes') {
+					const nextList = Array.isArray(value) ? value.filter(Boolean) : []
+					const unique = Array.from(new Set(nextList))
+					return { ...prev, surfaceTypes: unique }
+				}
+				return {
+					...prev,
+					[field]: value,
+				}
+			})
+		},
+		[resetManualRouteFeedback, setManualRouteMeta]
+	)
+	const {
+		handleManualRouteClear,
+		handleManualRouteResetPoints,
+		handleManualRouteToggle,
+		handleManualRouteUndo,
+		handleManualRouteEdit,
+	} = useManualRouteActions({
+		canModifyMap,
+		requireAuth,
+		manualRouteMode,
+		manualRoutePath,
+		manualRoutePoints,
+		setManualRouteMode,
+		setManualRoutePoints,
+		setManualRouteLegDistances,
+		setManualRoutePath,
+		setManualRouteEditingRouteId,
+		setManualRouteStatus,
+		manualRoutePointDragLockRef,
+		resetManualRouteFeedback,
+	})
+
+	const handleEditModeToggle = useCallback(() => {
+		setIsEditMode(prev => {
+			const next = !prev
+			if (!next) {
+				handleManualRouteClear()
+				setIsAddingStation(false)
+				setNewStation(null)
+				onAddClose()
+			}
+			return next
+		})
+	}, [handleManualRouteClear, onAddClose, setIsAddingStation, setNewStation])
+
+	const { handleManualRouteSave } = useManualRouteSaving({
+		userId,
+		manualRoutePoints,
+		manualRoutePositions,
+		manualRouteMeta,
+		mapLayer,
+		manualRouteProfile,
+		manualRouteFollowRoads,
+		manualRouteDistanceKm,
+		manualRouteEditingRouteId,
+		saveUserRoute,
+		setSavedRoutes,
+		setVisibleSavedRouteIds,
+		setManualRouteEditingRouteId,
+		setManualRouteStatus,
+		resetManualRouteFeedback,
+	})
+
+const handleManualRouteComplete = useCallback(async () => {
+		const saved = await handleManualRouteSave()
+		if (saved) {
+			handleManualRouteClear()
+			setManualRouteMeta({
+				name: '',
+				description: '',
+				color: DEFAULT_MANUAL_ROUTE_COLOR,
+				mapProvider: '',
+				difficulty: '',
+				surfaceTypes: [],
+			})
+		}
+	}, [handleManualRouteSave, handleManualRouteClear, manualRouteProfile])
+
+	const handleOpenSharedRouteFromCatalog = useCallback(sharedId => {
+		if (!sharedId || typeof window === 'undefined') return
+		const hash = window.location.hash || '#/'
+		const queryIndex = hash.indexOf('?')
+		const basePath =
+			queryIndex === -1 ? hash || '#/' : hash.substring(0, queryIndex) || '#/'
+		const params = new URLSearchParams(
+			queryIndex === -1 ? '' : hash.substring(queryIndex + 1)
+		)
+		params.set(SHARED_ROUTE_ID_QUERY_KEY, sharedId)
+		params.delete(SHARED_ROUTE_QUERY_KEY)
+		const nextHash = `${basePath}?${params.toString()}`
+		window.location.hash = nextHash
+	}, [])
+
+	useEffect(() => {
+		if (!canModifyMap) {
+			handleManualRouteClear()
+			setManualRouteMeta({
+				name: '',
+				description: '',
+				color: DEFAULT_MANUAL_ROUTE_COLOR,
+				mapProvider: '',
+				difficulty: '',
+				surfaceTypes: [],
+			})
+		}
+	}, [canModifyMap, handleManualRouteClear, manualRouteProfile])
+
+	const handleRefreshSavedRoutes = useCallback(() => {
+		loadSavedRoutes()
+	}, [loadSavedRoutes])
+
+	const handleEditSavedRoute = useCallback(
+		route => {
+			if (!route || !Array.isArray(route.waypoints) || route.waypoints.length < 2) {
+				return
+			}
+
+			const nextPoints = route.waypoints
+				.map(point => ({
+					lat: Number(point.latitude),
+					lng: Number(point.longitude),
+				}))
+				.filter(
+					point =>
+						!Number.isNaN(point.lat) &&
+						!Number.isNaN(point.lng)
+				)
+
+			if (nextPoints.length < 2) {
+				return
+			}
+
+			onDrawerClose()
+			manualRoutePointDragLockRef.current = false
+			setManualRouteMode(true)
+
+			setManualRouteMeta(prev => ({
+				...prev,
+				name: route.name || '',
+				description: route.description || '',
+				color: route.color || DEFAULT_MANUAL_ROUTE_COLOR,
+				mapProvider: route.mapProvider || '',
+				difficulty: route.difficulty || '',
+				surfaceTypes: Array.isArray(route.surfaceTypes) ? route.surfaceTypes : [],
+			}))
+			setManualRoutePoints(nextPoints)
+			const cachedPath = route.routeId ? getCachedRoutePath(route.routeId) : null
+			const pathSource =
+				(Array.isArray(route.pathCoordinates) && route.pathCoordinates.length >= 2
+					? route.pathCoordinates
+					: Array.isArray(cachedPath) && cachedPath.length >= 2
+					? cachedPath
+					: nextPoints.map(point => ({
+							latitude: point.lat,
+							longitude: point.lng,
+					  })))
+			const pathPositions = pathSource
+				.map(normalizeCoordinatePoint)
+				.filter(point => !Number.isNaN(point[0]) && !Number.isNaN(point[1]))
+			setManualRoutePath(pathPositions)
+			const legDistances = computeWaypointDistancesFromPath(
+				pathPositions,
+				nextPoints
+			)
+			setManualRouteLegDistances(legDistances)
+			setManualRouteFollowRoads(
+				typeof route.followRoads === 'boolean' ? route.followRoads : true
+			)
+			setManualRouteProfile(route.routingProfile || 'driving')
+			setManualRouteEditingRouteId(route.routeId || null)
+			resetManualRouteFeedback()
+		},
+		[resetManualRouteFeedback, onDrawerClose]
+	)
+
+	const handleDeleteSavedRoute = useCallback(
+		async routeId => {
+			if (!routeId || !userId) return
+			try {
+				let sharedId = null
+				try {
+					const stored =
+						typeof window !== 'undefined'
+							? localStorage.getItem('publishedRoutesMap')
+							: null
+					const map = stored ? JSON.parse(stored) : null
+					if (map && typeof map === 'object') {
+						sharedId = map[routeId] || null
+					}
+				} catch (error) {
+					console.warn('Failed to read publishedRoutesMap from storage:', error)
+				}
+				if (sharedId) {
+					try {
+						await deleteSharedRouteRecord(sharedId)
+					} catch (error) {
+						console.warn('Failed to remove shared route on delete:', error)
+					}
+					try {
+						if (typeof window !== 'undefined') {
+							const stored = localStorage.getItem('publishedRoutesMap')
+							const map = stored ? JSON.parse(stored) : null
+							if (map && typeof map === 'object') {
+								delete map[routeId]
+								localStorage.setItem(
+									'publishedRoutesMap',
+									JSON.stringify(map)
+								)
+							}
+							window.dispatchEvent(
+								new CustomEvent('shared-route-published', {
+									detail: { sharedId, routeId, removed: true },
+								})
+							)
+						}
+					} catch (storageError) {
+						console.warn('Failed to update publishedRoutesMap storage:', storageError)
+					}
+				}
+
+				await deleteUserRoute(userId, routeId)
+				setSavedRoutes(prev => prev.filter(route => route.routeId !== routeId))
+				setVisibleSavedRouteIds(prev => prev.filter(id => id !== routeId))
+				removeCachedRoutePath(routeId)
+			} catch (error) {
+				console.error('Error deleting route:', error)
+			}
+		},
+		[userId]
+	)
+
+	const handleToggleSavedRouteVisibility = useCallback(routeId => {
+		if (!routeId) return
+		setVisibleSavedRouteIds(prev =>
+			prev.includes(routeId)
+				? prev.filter(id => id !== routeId)
+				: [routeId, ...prev]
+		)
+	}, [])
+
+	const selectedTrackRenderList = useMemo(() => {
+		return selectedTrackIds
+			.map(sessionId => {
+				const track = trackMetadataMap.get(sessionId)
+				if (!track) return null
+				const routePoints =
+					routesState.data[sessionId] || recentTrackRoutes[sessionId] || []
+				if (!routePoints.length) return null
+				const positions = routePoints.map(point => [
+					point.latitude,
+					point.longitude,
+				])
+				return { sessionId, track, positions }
+			})
+			.filter(Boolean)
+	}, [selectedTrackIds, trackMetadataMap, routesState.data, recentTrackRoutes])
+
+	const savedRouteRenderList = useMemo(() => {
+		return savedRoutes
+			.filter(route => {
+				if (!visibleSavedRouteIds.includes(route.routeId)) {
+					return false
+				}
+				if (
+					manualRouteEditingRouteId &&
+					route.routeId === manualRouteEditingRouteId
+				) {
+					return false
+				}
+				return true
+			})
+			.map(route => {
+				const cachedPath = route.routeId ? getCachedRoutePath(route.routeId) : null
+
+				const rawPositionsSource =
+					(Array.isArray(route.pathCoordinates) &&
+						route.pathCoordinates.length >= 2 &&
+						route.pathCoordinates) ||
+					(Array.isArray(cachedPath) && cachedPath.length >= 2 && cachedPath) ||
+					(Array.isArray(route.waypoints) ? route.waypoints : [])
+
+				if (rawPositionsSource.length < 2) return null
+				const positions = rawPositionsSource
+					.map(normalizeCoordinatePoint)
+					.filter(
+						point => !Number.isNaN(point[0]) && !Number.isNaN(point[1])
+					)
+				if (positions.length < 2) return null
+
+				const waypointPositions =
+					Array.isArray(route.waypoints) && route.waypoints.length >= 2
+						? route.waypoints
+								.map(normalizeCoordinatePoint)
+								.filter(
+									point => !Number.isNaN(point[0]) && !Number.isNaN(point[1])
+								)
+						: []
+
+				const color = route.color || '#6366F1'
+
+				const waypointObjects = waypointPositions.map(([lat, lng]) => ({
+					lat,
+					lng,
+				}))
+				const legDistances = computeWaypointDistancesFromPath(
+					positions,
+					waypointObjects
+				)
+				let cumulative = 0
+				const distanceLabels = waypointObjects.map((point, index) => {
+					if (index > 0) {
+						cumulative += legDistances[index - 1] || 0
+					}
+					return {
+						id: `saved-route-distance-${route.routeId}-${index}`,
+						position: [point.lat, point.lng],
+						icon: createDistanceLabelIcon(color, formatDistanceLabel(cumulative)),
+					}
+				})
+
+				return {
+					routeId: route.routeId,
+					name: route.name,
+					color,
+					positions,
+					waypoints: waypointPositions,
+					waypointIcon: createManualRoutePointIcon(
+						color || DEFAULT_MANUAL_ROUTE_COLOR
+					),
+					distanceLabels,
+					startIcon: createRouteStartMarker(color),
+					endIcon: createRouteEndMarker(color),
+				}
+			})
+			.filter(Boolean)
+	}, [savedRoutes, visibleSavedRouteIds, manualRouteEditingRouteId])
+
+	const sharedRouteRenderItem = useMemo(() => {
+		if (
+			!sharedRoutePreview ||
+			!Array.isArray(sharedRoutePreview.path) ||
+			sharedRoutePreview.path.length < 2
+		) {
+			return null
+		}
+		const positions = sharedRoutePreview.path
+			.map(pair => {
+				if (Array.isArray(pair) && pair.length >= 2) {
+					return [Number(pair[0]), Number(pair[1])]
+				}
+				if (typeof pair === 'object') {
+					const lat = Number(pair.lat ?? pair.latitude)
+					const lng = Number(pair.lng ?? pair.longitude)
+					return [lat, lng]
+				}
+				return [NaN, NaN]
+			})
+			.filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
+		if (positions.length < 2) {
+			return null
+		}
+		const toWaypointObject = point => {
+			if (!point) return null
+			if (Array.isArray(point) && point.length >= 2) {
+				const lat = Number(point[0])
+				const lng = Number(point[1])
+				return Number.isFinite(lat) && Number.isFinite(lng)
+					? { lat, lng }
+					: null
+			}
+			if (typeof point === 'object') {
+				const lat = Number(point.lat ?? point.latitude)
+				const lng = Number(point.lng ?? point.longitude)
+				return Number.isFinite(lat) && Number.isFinite(lng)
+					? { lat, lng }
+					: null
+			}
+			return null
+		}
+		const waypointObjects = Array.isArray(sharedRoutePreview.waypoints)
+			? sharedRoutePreview.waypoints.map(toWaypointObject).filter(Boolean)
+			: []
+		const legDistances = computeWaypointDistancesFromPath(
+			positions,
+			waypointObjects
+		)
+		let cumulative = 0
+		const color = sharedRoutePreview.color || '#3182CE'
+		const distanceLabels = waypointObjects.map((point, index) => {
+			if (index > 0) {
+				cumulative += legDistances[index - 1] || 0
+			}
+			return {
+				id: `shared-route-distance-${index}`,
+				position: [point.lat, point.lng],
+				icon: createDistanceLabelIcon(color, formatDistanceLabel(cumulative)),
+			}
+		})
+
+		return {
+			routeId: sharedRoutePreview.routeId || 'shared-route',
+			name:
+				sharedRoutePreview.name ||
+				sharedRoutePreview.routeId ||
+				'Маршрут по ссылке',
+			color,
+			positions,
+			waypoints: waypointObjects,
+			startIcon: createRouteStartMarker(color),
+			endIcon: createRouteEndMarker(color),
+			waypointIcon: createManualRoutePointIcon(color),
+			distanceLabels,
+		}
+	}, [sharedRoutePreview])
+
+	const visibleSharedRoutesCatalog = useMemo(() => {
+		if (!Array.isArray(sharedRoutesCatalog) || !sharedRoutesCatalog.length) {
+			return []
+		}
+		const withCoords = sharedRoutesCatalog.filter(item => {
+			const lat = Number(item?.startPoint?.latitude ?? item?.startPoint?.lat)
+			const lng = Number(item?.startPoint?.longitude ?? item?.startPoint?.lng)
+			return Number.isFinite(lat) && Number.isFinite(lng)
+		})
+		if (!mapBounds) {
+			return withCoords
+		}
+		return withCoords.filter(item => {
+			const lat = Number(item?.startPoint?.latitude ?? item?.startPoint?.lat)
+			const lng = Number(item?.startPoint?.longitude ?? item?.startPoint?.lng)
+			return mapBounds.contains(L.latLng(lat, lng))
+		})
+	}, [sharedRoutesCatalog, mapBounds])
+
+	const sharedRoutesCatalogMarkers = useMemo(() => {
+		const catalogSource = Array.isArray(visibleSharedRoutesCatalog)
+			? visibleSharedRoutesCatalog
+			: sharedRoutesCatalog
+		if (!showSharedRoutesCatalog || !catalogSource.length) {
+			return null
+		}
+		return catalogSource
+			.map(item => {
+				if (!item) return null
+				const lat = Number(item.startPoint?.latitude ?? item.startPoint?.lat)
+				const lng = Number(item.startPoint?.longitude ?? item.startPoint?.lng)
+				if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+					return null
+				}
+				const color = item.color || '#7C3AED'
+				const icon = createRouteStartMarker(color)
+				return (
+					<Marker
+						key={`shared-route-pin-${item.sharedId || `${lat}-${lng}`}`}
+						position={[lat, lng]}
+						icon={icon}
+					>
+						<Popup>
+							<div style={{ minWidth: '150px' }}>
+								<strong>{item.name || 'Маршрут'}</strong>
+								{typeof item.distanceKm === 'number' && (
+									<div style={{ fontSize: '12px', color: '#4a5568' }}>
+										Дистанция: {item.distanceKm.toFixed(2)} км
+									</div>
+								)}
+								{resolveSharedRouteAuthor(item) && (
+									<div style={{ fontSize: '12px', color: '#4a5568' }}>
+										Автор: {resolveSharedRouteAuthor(item)}
+									</div>
+								)}
+								{item.createdAt && (
+									<div style={{ fontSize: '12px', color: '#718096' }}>
+										Дата: {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+									</div>
+								)}
+								<button
+									style={{
+										marginTop: '8px',
+										padding: '4px 8px',
+										background: '#4c51bf',
+										color: '#fff',
+										border: 'none',
+										borderRadius: '4px',
+										cursor: 'pointer',
+									}}
+									onClick={() =>
+										handleOpenSharedRouteFromCatalog(item.sharedId)
+									}
+								>
+									Открыть
+								</button>
+							</div>
+						</Popup>
+					</Marker>
+				)
+			})
+			.filter(Boolean)
+	}, [
+		showSharedRoutesCatalog,
+		sharedRoutesCatalog,
+		visibleSharedRoutesCatalog,
+		handleOpenSharedRouteFromCatalog,
+		resolveSharedRouteAuthor,
+	])
 
 	// Локации для отображения погоды (районы и пригороды Санкт-Петербурга)
-	const weatherLocations = useMemo(
-		() => [
-			// Пригороды
-			{
-				id: 'murino',
-				lat: 60.057,
-				lon: 30.4306,
-				name: 'Мурино',
-			},
-			{
-				id: 'pargolobo',
-				lat: 60.1089,
-				lon: 30.2958,
-				name: 'Парголово',
-			},
-			{
-				id: 'sestroretsk',
-				lat: 60.1004,
-				lon: 29.9608,
-				name: 'Сестрорецк',
-			},
-			{
-				id: 'shushary',
-				lat: 59.7528,
-				lon: 30.3281,
-				name: 'Шушары',
-			},
-			{
-				id: 'kolpino',
-				lat: 59.7506,
-				lon: 30.5931,
-				name: 'Колпино',
-			},
-			{
-				id: 'pushkin',
-				lat: 59.7142,
-				lon: 30.3936,
-				name: 'Пушкин',
-			},
-			{
-				id: 'petergof',
-				lat: 59.8842,
-				lon: 29.9089,
-				name: 'Петергоф',
-			},
-			{
-				id: 'kronshtadt',
-				lat: 59.9911,
-				lon: 29.7658,
-				name: 'Кронштадт',
-			},
-			{
-				id: 'kudrovo',
-				lat: 59.9136,
-				lon: 30.5119,
-				name: 'Кудрово',
-			},
-			{
-				//60.024647, 30.645621
-				id: 'vsevolozhsk',
-				lat: 60.0246,
-				lon: 30.6456,
-				name: 'Всеволожск',
-			},
-			// Районы Санкт-Петербурга
-			{
-				id: 'kalininskiy',
-				lat: 59.9965,
-				lon: 30.4006,
-				name: 'Калининский район',
-			},
-			{
-				id: 'primorskiy',
-				lat: 60.0081,
-				lon: 30.2084,
-				name: 'Приморский район',
-			},
-			{
-				//59.912381, 30.297154
-				id: 'admiralteyskiy',
-				lat: 59.9123,
-				lon: 30.2971,
-				name: 'Адмиралтейский район',
-			},
-			{
-				//59.941562, 30.247963
-				id: 'vasileostrovskiy',
-				lat: 59.9415,
-				lon: 30.2479,
-				name: 'Василеостровский район',
-			},
-			{
-				id: 'petrogradskiy',
-				lat: 59.9606,
-				lon: 30.3084,
-				name: 'Петроградский район',
-			},
-			{
-				id: 'nevskiy',
-				lat: 59.9278,
-				lon: 30.3609,
-				name: 'Невский район',
-			},
-			{
-				//60.032393, 30.330178
-				id: 'vyborgskiy',
-				lat: 60.0323,
-				lon: 30.3301,
-				name: 'Выборгский район',
-			},
-			{
-				id: 'krasnogvardeyskiy',
-				lat: 59.9561,
-				lon: 30.4606,
-				name: 'Красногвардейский район',
-			},
-			{
-				//59.870031, 30.390721
-				id: 'frunzenskiy',
-				lat: 59.87,
-				lon: 30.3907,
-				name: 'Фрунзенский район',
-			},
-			{
-				//59.876430, 30.257595
-				id: 'kirovskiy',
-				lat: 59.8764,
-				lon: 30.2575,
-				name: 'Кировский район',
-			},
-		],
-		[]
-	)
 
 	const [workshops, setWorkshops] = useState([])
 
@@ -1551,7 +2934,10 @@ const UserMap = ({ userId, admins }) => {
 	useEffect(() => {
 		const fetchWorkshops = async () => {
 			try {
-				const response = await fetch('https://api.monopiter.ru/api/workshops/')
+				const response = await fetch(`${API_BASE_URL}/workshops`)
+				if (!response.ok) {
+					throw new Error('Не удалось загрузить мастерские')
+				}
 				const data = await response.json()
 				// Фильтруем только мастерские с координатами
 				const workshopsWithCoords = data.filter(
@@ -1580,15 +2966,50 @@ const UserMap = ({ userId, admins }) => {
 		[]
 	)
 
-	// Затем создаем функцию получения иконок
 	const getMarkerIcon = useCallback(
 		station => {
-			if (station.markerType === 'charging' && station.is24Hours) {
-				return icons.charging24
+			const isStationOffline = computeIsOffline(station)
+			const markerType =
+				station.markerType === 'charging' && station.is24Hours
+					? 'charging24'
+					: station.markerType
+
+			if (isStationOffline && markerType !== 'workshop') {
+				const offlineOptions = {
+					badgeLabel: 'OFF',
+					badgeColor: '#1f2937',
+					badgeTextColor: '#fff',
+					className: 'offline-marker',
+				}
+
+				switch (markerType) {
+					case 'charging24':
+						return createCharging24Marker(offlineOptions)
+					case 'chargingAuto':
+						return createChargingAutoMarker(offlineOptions)
+					case 'interesting':
+						return createInterestingMarker(offlineOptions)
+					case 'danger':
+						return createDangerMarker(offlineOptions)
+					case 'chat':
+						return createChatMarker(offlineOptions)
+					default:
+						return createChargingMarker(offlineOptions)
+				}
 			}
-			return icons[station.markerType] || icons.charging
+
+			return icons[markerType] || icons.charging
 		},
-		[icons]
+		[icons, computeIsOffline]
+	)
+
+	const getMarkerKey = useCallback(
+		station => {
+			const id = normalizeStationId(station)
+			const offline = computeIsOffline(station) ? 'offline' : 'online'
+			return `${id}-${offline}`
+		},
+		[normalizeStationId, computeIsOffline]
 	)
 
 	const handleWorkshopClick = useCallback(
@@ -1663,9 +3084,8 @@ const UserMap = ({ userId, admins }) => {
 	)
 
 	// Состояние для зума и связанные хуки
-	const [mapInstance, setMapInstance] = useState(null)
 	const [currentZoom, setCurrentZoom] = useState(DEFAULT_MAP_ZOOM)
-	const [showPerfStats, setShowPerfStats] = useState(false) // По умолчанию отключаем для production
+	const [layersControlOffset, setLayersControlOffset] = useState(0)
 
 	// Дебаунсим обновление зума для предотвращения частых перерендеров
 	const debouncedSetZoom = useMemo(
@@ -1673,12 +3093,131 @@ const UserMap = ({ userId, admins }) => {
 		[]
 	)
 
+	useEffect(() => {
+		if (!mapInstance || !lastFocusedTrackId) return
+		const target = selectedTrackRenderList.find(
+			item => item.sessionId === lastFocusedTrackId
+		)
+		if (!target || !target.positions.length) return
+		const bounds = L.latLngBounds(target.positions)
+		mapInstance.fitBounds(bounds, { padding: [40, 40] })
+	}, [mapInstance, lastFocusedTrackId, selectedTrackRenderList])
+
+	useEffect(() => {
+		if (!sharedRouteRenderItem || !mapInstance) return
+		try {
+			const bounds = L.latLngBounds(sharedRouteRenderItem.positions)
+			mapInstance.fitBounds(bounds, { padding: [40, 40] })
+		} catch (error) {
+			console.error('Failed to focus shared route:', error)
+		}
+	}, [sharedRouteRenderItem, mapInstance])
+
+	const handleTrackToggle = useCallback(sessionId => {
+		setSelectedTrackIds(prev => {
+			if (prev.includes(sessionId)) {
+				const next = prev.filter(id => id !== sessionId)
+				setLastFocusedTrackId(current =>
+					current === sessionId ? next[next.length - 1] || null : current
+				)
+				return next
+			}
+			setLastFocusedTrackId(sessionId)
+			return [...prev, sessionId]
+		})
+	}, [])
+
 	// Очищаем дебаунс при размонтировании
 	useEffect(() => {
 		return () => {
 			debouncedSetZoom.cancel()
 		}
 	}, [debouncedSetZoom])
+
+	// Смещаем кнопки на правой панели ниже переключателя слоев карты
+	useEffect(() => {
+		if (!mapInstance) return
+
+		const layersControl = document.querySelector('.leaflet-control-layers')
+		if (!layersControl) {
+			setLayersControlOffset(0)
+			return
+		}
+
+		const applyOffset = height => {
+			const offsetValue = Math.round(height + 16) // добавляем небольшой отступ
+			setLayersControlOffset(prev =>
+				prev !== offsetValue ? offsetValue : prev
+			)
+		}
+
+		const updateOffsetFromElement = () => {
+			if (layersControl.classList.contains('leaflet-control-layers-expanded')) {
+				return
+			}
+			const rect = layersControl.getBoundingClientRect()
+			applyOffset(rect.height)
+		}
+
+		const resizeHandler = () => {
+			if (layersControl.classList.contains('leaflet-control-layers-expanded')) {
+				return
+			}
+			updateOffsetFromElement()
+		}
+
+		updateOffsetFromElement()
+
+		let resizeObserver = null
+		let mutationObserver = null
+		let hasWindowListener = false
+
+		if (typeof ResizeObserver !== 'undefined') {
+			resizeObserver = new ResizeObserver(entries => {
+				if (layersControl.classList.contains('leaflet-control-layers-expanded')) {
+					return
+				}
+				const entry = entries[0]
+				if (entry?.contentRect) {
+					applyOffset(entry.contentRect.height)
+				} else {
+					updateOffsetFromElement()
+				}
+			})
+			resizeObserver.observe(layersControl)
+		} else if (typeof MutationObserver !== 'undefined') {
+			mutationObserver = new MutationObserver(() => {
+				if (
+					layersControl.classList.contains('leaflet-control-layers-expanded')
+				) {
+					return
+				}
+				updateOffsetFromElement()
+			})
+			mutationObserver.observe(layersControl, {
+				attributes: true,
+				childList: true,
+				subtree: true,
+			})
+			window.addEventListener('resize', resizeHandler)
+			hasWindowListener = true
+		} else {
+			window.addEventListener('resize', resizeHandler)
+			hasWindowListener = true
+		}
+
+			return () => {
+			if (resizeObserver) {
+				resizeObserver.disconnect()
+			}
+			if (mutationObserver) {
+				mutationObserver.disconnect()
+			}
+			if (hasWindowListener) {
+				window.removeEventListener('resize', resizeHandler)
+			}
+		}
+	}, [mapInstance])
 
 	// Определяем, нужно ли использовать кластеризацию в зависимости от зума и количества маркеров
 	const shouldUseClustering = useMemo(() => {
@@ -1777,64 +3316,250 @@ const UserMap = ({ userId, admins }) => {
 	}
 
 	const userIcon = createUserMarker()
+	const actionButtonsTop = Math.max(layersControlOffset, 10) + WEATHER_BUTTON_OFFSET
+
+		const drawerMenuProps = useDrawerMenuProps({
+			selectedDate,
+			onDateChange: handleDateChange,
+			trackList: availableTracks,
+			trackStatus,
+			onToggleTrack: handleTrackToggle,
+			selectedTrackIds,
+			recentTracks,
+			recentTracksStatus,
+			savedRoutes,
+			savedRoutesStatus,
+			visibleSavedRouteIds,
+			onToggleSavedRouteVisibility: handleToggleSavedRouteVisibility,
+			onRefreshSavedRoutes: handleRefreshSavedRoutes,
+			onEditSavedRoute: handleEditSavedRoute,
+			onDeleteSavedRoute: handleDeleteSavedRoute,
+			userId,
+			authorName,
+			isGuestMode: isGuestView,
+			onRequireAuth: requireAuth,
+			onRecentTracksToggle: setRecentTracksLoaded,
+			sharedRoutesCatalog,
+			sharedRoutesCatalogStatus,
+			onOpenSharedRouteFromCatalog: handleOpenSharedRouteFromCatalog,
+			onRefreshSharedRoutesCatalog: handleRefreshSharedRoutesCatalog,
+			onEnsureCatalogVisible: ensureSharedRoutesCatalogVisible,
+			visibleSharedRoutesCatalog,
+		})
 
 	return (
 		<Box
 			position='relative'
 			display='flex'
 			flexDirection='column'
-			height='100vh'
-			paddingBottom='50px'
+	height='100vh'
+	paddingBottom='50px'
+>
+		<Box
+			position='absolute'
+			top={{ base: '8px', md: '10px' }}
+			left='11px'
+			zIndex={1100}
 		>
-			<IconButton
-				onClick={onDrawerOpen}
-				position='absolute'
-				top='10px'
-				left='11px'
-				zIndex={1000}
-				icon={<HamburgerIcon />}
-				borderWidth={2}
-				borderRadius={4}
-				borderColor='gray'
+			<MapTopControls
+				isDesktopSidebar={isDesktopSidebar}
+				isDrawerOpen={isDrawerOpen}
+				onDrawerOpen={onDrawerOpen}
+				manualRouteMode={manualRouteMode}
+				onManualRouteToggle={handleManualRouteToggle}
+				isEditMode={isEditMode}
+				onEditModeToggle={handleEditModeToggle}
+				onAddStation={handleAddStationClick}
+				isAddingStation={isAddingStation}
+				showSharedRoutesCatalog={showSharedRoutesCatalog}
+				isGuestView={isGuestView}
+				onRequireAuth={requireAuth}
+				sharedRoutePreview={sharedRoutePreview}
+				onSharedRouteClear={handleSharedRouteClear}
+				sharedRouteFetchStatus={sharedRouteFetchStatus}
+				sharedRouteError={sharedRouteError}
+				sharedRoutesCatalogStatus={sharedRoutesCatalogStatus}
 			/>
+		</Box>
 
-			<Drawer isOpen={isDrawerOpen} placement='right' onClose={onDrawerClose}>
-				<DrawerOverlay>
-					<DrawerContent
-						borderBottomWidth={2}
-						borderBottomRadius={6}
-						borderBottomColor='black'
-						bg='rgba(255, 255, 255, 0.8)'
-						backdropFilter='blur(10px)'
+				<ManualRoutePanel
+					isVisible={shouldShowManualRoutePanel}
+					panelRef={manualRoutePanelRef}
+					position={manualRoutePanelPosition}
+					isCompact={isCompactManualPanel}
+					isCollapsed={manualRoutePanelIsCollapsed}
+					actionButtonSize={manualRouteActionButtonSize}
+					controlSize={manualRouteControlSize}
+					followRoads={manualRouteFollowRoads}
+					profile={manualRouteProfile}
+					profileOptions={MANUAL_ROUTE_PROFILES}
+					profileLabel={manualRouteProfileLabel}
+					summaryDistance={manualRouteSummaryDistance}
+					mode={manualRouteMode}
+					saveDisabled={manualRouteSaveDisabled}
+					hasExistingRoute={manualRouteHasExistingRoute}
+					hasUndo={manualRouteHasUndo}
+					meta={manualRouteMeta}
+					routingStatus={manualRouteRoutingStatus}
+					status={manualRouteStatus}
+					onPointerDown={handleManualRoutePanelPointerDown}
+					onToggleCollapse={handleManualRoutePanelToggle}
+					onComplete={handleManualRouteComplete}
+					onClear={handleManualRouteClear}
+					onUndo={handleManualRouteUndo}
+					onReset={handleManualRouteResetPoints}
+					onProfileChange={setManualRouteProfile}
+					onFollowRoadsChange={setManualRouteFollowRoads}
+					onMetaChange={handleManualRouteMetaChange}
+					onEdit={handleManualRouteEdit}
+				/>
+
+				<DrawerMenuContainer
+					isDesktop={isDesktopSidebar}
+					sidebarPosition={sidebarPosition}
+					onSidebarPointerDown={handleSidebarPointerDown}
+					drawerIsOpen={isDrawerOpen}
+					onDrawerClose={onDrawerClose}
+			menuProps={drawerMenuProps}
+		/>
+
+				<Box
+					position='absolute'
+					top={`${floatingControlsPosition.top}px`}
+					left={`${floatingControlsPosition.left}px`}
+					zIndex={1100}
+					onPointerDown={handleFloatingControlsPointerDown}
+					display='flex'
+					flexDirection='column'
+					gap='4px'
+					cursor='grab'
+					data-drag-area
+				>
+					<Box
+						data-drag-handle
+						width='50px'
+						height='10px'
+						borderRadius='full'
+						bg='gray.200'
+						alignSelf='flex-start'
+						ml='5px'
+						boxShadow='sm'
+					/>
+					<Box
+						bg='white'
+						borderRadius='md'
+						boxShadow='md'
+						p='8px'
+						display='flex'
+						flexDirection='column'
+						gap='10px'
+						cursor='default'
+						data-no-drag
 					>
-						<DrawerCloseButton />
-						<DrawerHeader>Меню</DrawerHeader>
-						<DrawerBody>
-							<Suspense fallback={<div>Loading...</div>}>
-								<DrawerMenu
-									dateRange={dateRange}
-									handleDateChange={handleDateChange}
-									handleSearch={handleSearch}
-									showHeatmap={showHeatmap}
-									setShowHeatmap={setShowHeatmap}
-									heatmapStatus={heatmapStatus}
-									handleHeatmapPeriodChange={handleHeatmapPeriodChange}
-									heatmapPeriod={heatmapPeriod}
-									heatmapMonth={heatmapMonth}
-									setHeatmapMonth={setHeatmapMonth}
-									heatmapYear={heatmapYear}
-									setHeatmapYear={setHeatmapYear}
-									totalActiveDistance={totalActiveDistance}
-									routesState={routesState}
-									toggleSession={toggleSession}
-									handleScroll={handleScroll}
-									carouselRef={carouselRef}
+						<Box
+							display='flex'
+							flexDirection='column'
+							gap='10px'
+							alignItems='center'
+						>
+							<MobileTooltip label={showChargingStations ? 'Скрыть станции' : 'Показать станции'}>
+								<IconButton
+									as={motion.button}
+									{...buttonMotion}
+									onClick={toggleChargingStations}
+									variant='solid'
+									icon={<HiLocationMarker />}
+									colorScheme={showChargingStations ? 'blue' : 'gray'}
+									size='md'
+									borderRadius={3}
+									borderColor='gray'
+									borderWidth={2}
+									width='34px'
+									padding='0'
+									sx={baseIconButtonStyles}
+									data-no-drag
 								/>
-							</Suspense>
-						</DrawerBody>
-					</DrawerContent>
-				</DrawerOverlay>
-			</Drawer>
+							</MobileTooltip>
+							<MobileTooltip
+								label={
+									showSharedRoutesCatalog
+										? 'Скрыть каталог маршрутов'
+										: 'Показать каталог маршрутов'
+								}
+							>
+								<IconButton
+									as={motion.button}
+									{...buttonMotion}
+									onClick={() => setShowSharedRoutesCatalog(prev => !prev)}
+									variant='solid'
+									icon={<FaMapMarkedAlt />}
+									colorScheme={showSharedRoutesCatalog ? 'purple' : 'gray'}
+									size='md'
+									borderRadius={3}
+									borderColor='gray'
+									borderWidth={2}
+									width='34px'
+									padding='0'
+									sx={baseIconButtonStyles}
+									aria-label='Каталог маршрутов'
+									data-no-drag
+								/>
+							</MobileTooltip>
+							<MobileTooltip label='Моё местоположение'>
+								<IconButton
+									as={motion.button}
+									{...buttonMotion}
+									onClick={centerOnUser}
+									icon={<FaLocationArrow />}
+									colorScheme='blue'
+									size='md'
+									borderRadius={3}
+									borderColor='gray'
+									borderWidth={2}
+									width='34px'
+									padding='0'
+									sx={baseIconButtonStyles}
+									data-no-drag
+								/>
+							</MobileTooltip>
+							<MobileTooltip label={showActiveUsers ? 'Скрыть пользователей' : 'Показать пользователей'}>
+								<IconButton
+									as={motion.button}
+									{...buttonMotion}
+									onClick={toggleActiveUsers}
+									variant='solid'
+									icon={<FaUsers />}
+									colorScheme={showActiveUsers ? 'green' : 'gray'}
+									size='md'
+									borderRadius={3}
+									borderColor='gray'
+									borderWidth={2}
+									width='34px'
+									padding='0'
+									sx={baseIconButtonStyles}
+									data-no-drag
+								/>
+							</MobileTooltip>
+							<HeatmapControl
+								inline
+								showHeatmap={showHeatmap}
+								onToggleHeatmap={toggleHeatmapVisibility}
+								heatmapStatus={heatmapStatus}
+								heatmapPeriod={heatmapPeriod}
+								handleHeatmapPeriodChange={handleHeatmapPeriodChange}
+								heatmapMonth={heatmapMonth}
+								setHeatmapMonth={setHeatmapMonth}
+								heatmapYear={heatmapYear}
+								setHeatmapYear={setHeatmapYear}
+							/>
+							<MarkerFilterControl
+								inline
+								filters={markerFilters}
+								onFilterChange={setMarkerFilters}
+							/>
+						</Box>
+					</Box>
+				</Box>
 
 			<Box
 				flex='1'
@@ -1846,13 +3571,14 @@ const UserMap = ({ userId, admins }) => {
 				overflow='hidden'
 			>
 				<MapContainer
-					center={DEFAULT_MAP_CENTER}
+					center={mapCenter}
 					zoom={DEFAULT_MAP_ZOOM}
 					attributionControl={false}
 					zoomControl={false}
 					style={{ height: '100%', width: '100%' }}
 					whenCreated={mapInstance => {
 						mapRef.current = mapInstance
+						setMapInstance(mapInstance)
 					}}
 				>
 					<LayersControl position='topright'>
@@ -1895,55 +3621,234 @@ const UserMap = ({ userId, admins }) => {
 							{shouldUseClustering ? (
 								<ModernMarkerClusterGroup {...clusterOptions}>
 									{visibleMarkers.map(marker => (
-										<OptimizedMarker key={marker._id} marker={marker} />
+										<OptimizedMarker
+											key={getMarkerKey(marker)}
+											marker={marker}
+										/>
 									))}
 								</ModernMarkerClusterGroup>
 							) : (
 								<>
 									{visibleMarkers.map(marker => (
-										<OptimizedMarker key={marker._id} marker={marker} />
+										<OptimizedMarker
+											key={getMarkerKey(marker)}
+											marker={marker}
+										/>
 									))}
 								</>
 							)}
 						</>
 					)}
 
-					{Object.keys(routesState.data).map((sessionId, idx) => {
-						if (!routesState.visibleSessions[sessionId]) return null
-						const sessionRoute = routesState.data[sessionId]
-						const sessionPositions = sessionRoute.map(point => [
-							point.latitude,
-							point.longitude,
-						])
-						const totalDistance = routesState.distances[sessionId]
+					{selectedTrackRenderList.map((item, idx) => {
+						if (!item || !item.positions || item.positions.length === 0)
+							return null
+						const color = RECENT_TRACK_COLORS[idx % RECENT_TRACK_COLORS.length]
 
 						return (
-							<React.Fragment key={sessionId}>
+							<React.Fragment key={`selected-track-${item.sessionId}`}>
 								<Polyline
-									positions={sessionPositions}
-									color={sessionColors[idx]}
-									weight={3}
+									positions={item.positions}
+									color={color}
+									weight={4}
+									opacity={0.85}
 								/>
-
-								<Marker position={sessionPositions[0]} icon={startIcon}>
-									<Popup>{`Начало трека (Маршрут ${sessionId}): ${new Date(
-										sessionRoute[0].timestamp * 1000
-									).toLocaleString()}`}</Popup>
+								<Marker position={item.positions[0]} icon={startIcon}>
+									<Popup>
+										{`Начало трека: ${
+											item.track.startTimestamp
+												? new Date(item.track.startTimestamp).toLocaleString()
+												: 'Неизвестно'
+										}`}
+									</Popup>
 								</Marker>
-
-								<Marker
-									position={sessionPositions[sessionPositions.length - 1]}
-									icon={endIcon}
-								>
-									<Popup>{`Конец трека (Маршрут ${sessionId}): ${new Date(
-										sessionRoute[sessionRoute.length - 1].timestamp * 1000
-									).toLocaleString()} \n Пробег: ${(
-										totalDistance / 1000
-									).toFixed(2)} км`}</Popup>
-								</Marker>
+								{item.positions.length > 1 && (
+									<Marker
+										position={item.positions[item.positions.length - 1]}
+										icon={endIcon}
+									>
+										<Popup>
+											{`Конец трека: ${
+												item.track.endTimestamp
+													? new Date(item.track.endTimestamp).toLocaleString()
+													: 'Неизвестно'
+											}\nПробег: ${(item.track.distance / 1000).toFixed(2)} км`}
+										</Popup>
+									</Marker>
+								)}
 							</React.Fragment>
 						)
 					})}
+
+					{savedRouteRenderList.map(route => (
+						<React.Fragment key={`saved-route-${route.routeId}`}>
+							<Polyline
+								positions={route.positions}
+								color={route.color}
+								weight={5}
+								opacity={0.85}
+							/>
+							<Marker position={route.positions[0]} icon={route.startIcon}>
+								<Popup>{`Начало маршрута: ${route.name || route.routeId}`}</Popup>
+							</Marker>
+							<Marker
+								position={route.positions[route.positions.length - 1]}
+								icon={route.endIcon}
+							>
+								<Popup>{`Конец маршрута: ${route.name || route.routeId}`}</Popup>
+							</Marker>
+							{route.waypoints &&
+								route.waypoints.length > 2 &&
+								route.waypoints.slice(1, -1).map((point, index) => (
+									<Marker
+										key={`saved-route-waypoint-${route.routeId}-${index}`}
+										position={point}
+										icon={route.waypointIcon}
+										interactive={false}
+									/>
+								))}
+							{route.distanceLabels?.map(label => (
+								<Marker
+									key={label.id}
+									position={label.position}
+									icon={label.icon}
+									interactive={false}
+								/>
+							))}
+						</React.Fragment>
+					))}
+
+					{sharedRouteRenderItem && (
+						<React.Fragment key='shared-route-preview'>
+							<Polyline
+								positions={sharedRouteRenderItem.positions}
+								color={sharedRouteRenderItem.color}
+								weight={5}
+								opacity={0.85}
+							/>
+							<Marker
+								position={sharedRouteRenderItem.positions[0]}
+								icon={sharedRouteRenderItem.startIcon}
+							>
+								<Popup>
+									{`Начало маршрута: ${
+										sharedRouteRenderItem.name ||
+										sharedRouteRenderItem.routeId
+									}`}
+								</Popup>
+							</Marker>
+							<Marker
+								position={
+									sharedRouteRenderItem.positions[
+										sharedRouteRenderItem.positions.length - 1
+									]
+								}
+								icon={sharedRouteRenderItem.endIcon}
+							>
+								<Popup>
+									{`Конец маршрута: ${
+										sharedRouteRenderItem.name ||
+										sharedRouteRenderItem.routeId
+									}`}
+								</Popup>
+							</Marker>
+							{sharedRouteRenderItem.waypoints &&
+								sharedRouteRenderItem.waypoints.length > 2 &&
+								sharedRouteRenderItem.waypoints
+									.slice(1, -1)
+									.map((point, index) => (
+										<Marker
+											key={`shared-route-waypoint-${index}`}
+											position={[point.lat, point.lng]}
+											icon={sharedRouteRenderItem.waypointIcon}
+											interactive={false}
+										/>
+									))}
+							{sharedRouteRenderItem.distanceLabels?.map(label => (
+								<Marker
+									key={label.id}
+									position={label.position}
+									icon={label.icon}
+									interactive={false}
+								/>
+							))}
+						</React.Fragment>
+					)}
+
+					{showSharedRoutesCatalog && sharedRoutesCatalogMarkers}
+
+					{manualRoutePositions.length > 0 && (
+						<React.Fragment>
+							<Polyline
+								positions={manualRoutePositions}
+								color={manualRouteMeta.color || DEFAULT_MANUAL_ROUTE_COLOR}
+								weight={6}
+								opacity={0.95}
+								eventHandlers={{
+									click: handleManualRoutePolylineClick,
+								}}
+							/>
+							{manualRouteDistanceLabels.map(label => (
+								<Marker
+									key={label.id}
+									position={label.position}
+									icon={label.icon}
+									interactive={false}
+								/>
+							))}
+							{manualRoutePoints.map((point, index) => {
+								const icon =
+									index === 0
+										? manualRouteStartIcon
+										: index === manualRoutePoints.length - 1
+										? manualRouteEndIcon
+										: manualRoutePointIcon
+								const draggable = canDragManualPoints
+								const markerProps = {
+									position: [point.lat, point.lng],
+									icon,
+									draggable,
+								}
+
+								const eventHandlers = draggable
+									? {
+											dragstart: () => {
+												manualRoutePointDragLockRef.current = true
+											},
+											drag: event => {
+												const newLatLng = event.target.getLatLng()
+												updateManualRoutePoint(index, newLatLng)
+											},
+											dragend: event => {
+												const newLatLng = event.target.getLatLng()
+												updateManualRoutePoint(index, newLatLng)
+												requestAnimationFrame(() => {
+													manualRoutePointDragLockRef.current = false
+												})
+											},
+											contextmenu: () => removeManualRoutePoint(index),
+									  }
+									: undefined
+
+								return (
+									<Marker
+										key={`manual-point-${index}`}
+										{...markerProps}
+										eventHandlers={eventHandlers}
+									>
+										{draggable && (
+											<Popup>
+												<Text fontSize='sm'>
+													Точка {index + 1}. Перетащите для коррекции, правый
+													клик – удалить.
+												</Text>
+											</Popup>
+										)}
+									</Marker>
+								)
+							})}
+						</React.Fragment>
+					)}
 
 					{showHeatmap &&
 						!heatmapStatus.loading &&
@@ -1967,61 +3872,10 @@ const UserMap = ({ userId, admins }) => {
 							/>
 						)}
 
-					{showWeather && (
-						<WeatherLayer
-							locations={weatherLocations}
-							isVisible={showWeather}
-							mapBounds={mapBounds}
-						/>
-					)}
-
 					<MapEvents />
-					{showChargingStations && (
-						<MarkerFilterControl
-							filters={markerFilters}
-							onFilterChange={setMarkerFilters}
-						/>
-					)}
-
-					<Box position='absolute' top='81px' left='11px' zIndex={1000}>
-						<IconButton
-							onClick={toggleChargingStations}
-							variant='solid'
-							icon={<HiLocationMarker />}
-							colorScheme={showChargingStations ? 'blue' : 'gray'}
-							size='md'
-							borderRadius={3}
-							borderColor='gray'
-							borderWidth={2}
-							width='30px'
-							padding='0'
-						/>
-					</Box>
-					{showChargingStations && (
-						<Box position='absolute' top='130px' left='11px' zIndex={1000}>
-							<IconButton
-								onClick={handleAddStationClick}
-								isDisabled={isAddingStation}
-								icon={<AddIcon />}
-								colorScheme='gray'
-								size='md'
-								borderRadius={3}
-								borderColor='gray'
-								borderWidth={2}
-							/>
-						</Box>
-					)}
 				</MapContainer>
 
-				{/* Погодный виджет */}
-				{showWeather && userPosition && (
-					<WeatherWidget
-						lat={userPosition[0]}
-						lon={userPosition[1]}
-						isVisible={showWeather}
-						position='top-right'
-					/>
-				)}
+					
 			</Box>
 
 			{isAddingStation && (
@@ -2040,63 +3894,6 @@ const UserMap = ({ userId, admins }) => {
 					Кликните на карту, чтобы добавить станцию
 				</Box>
 			)}
-
-			<Box position='absolute' top='230px' left='11px' zIndex={1000}>
-				<IconButton
-					onClick={centerOnUser}
-					icon={<FaLocationArrow />}
-					colorScheme='blue'
-					size='md'
-					aria-label='Определить местоположение'
-				/>
-			</Box>
-
-			<Box position='absolute' top='280px' left='11px' zIndex={1000}>
-				<IconButton
-					onClick={toggleActiveUsers}
-					variant='solid'
-					icon={<FaUsers />}
-					colorScheme={showActiveUsers ? 'green' : 'gray'}
-					size='md'
-					borderRadius={3}
-					borderColor='gray'
-					borderWidth={2}
-					width='30px'
-					padding='0'
-				/>
-			</Box>
-
-			<Box position='absolute' top='330px' left='11px' zIndex={1000}>
-				<IconButton
-					onClick={toggleWeather}
-					variant='solid'
-					icon={<FaCloudSun />}
-					colorScheme={showWeather ? 'blue' : 'gray'}
-					size='md'
-					borderRadius={3}
-					borderColor='gray'
-					borderWidth={2}
-					width='30px'
-					padding='0'
-					aria-label='Показать погоду на карте и виджет'
-				/>
-			</Box>
-
-			<Box position='absolute' top='380px' left='11px' zIndex={1000}>
-				<IconButton
-					onClick={() => setShowPerfStats(!showPerfStats)}
-					variant='solid'
-					icon={<span style={{ fontSize: '14px' }}>📊</span>}
-					colorScheme={showPerfStats ? 'green' : 'gray'}
-					size='md'
-					borderRadius={3}
-					borderColor='gray'
-					borderWidth={2}
-					width='30px'
-					padding='0'
-					aria-label='Показать статистику производительности'
-				/>
-			</Box>
 
 			<Suspense fallback={<div>Loading...</div>}>
 				<AddStationModal
@@ -2120,6 +3917,7 @@ const UserMap = ({ userId, admins }) => {
 					onDelete={handleDeleteStation}
 					isAdmin={isAdmin}
 					userId={userId}
+					onStatusChange={handleStationStatusChange}
 				/>
 
 				<Suspense fallback={<Box>Загрузка...</Box>}>
@@ -2131,14 +3929,6 @@ const UserMap = ({ userId, admins }) => {
 				</Suspense>
 			</Suspense>
 
-			{/* Статистика производительности */}
-			<PerformanceStats
-				totalMarkers={filteredMarkers.length}
-				visibleMarkers={visibleMarkers.length}
-				currentZoom={currentZoom}
-				shouldUseClustering={shouldUseClustering}
-				isVisible={showPerfStats}
-			/>
 		</Box>
 	)
 }
