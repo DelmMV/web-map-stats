@@ -1784,19 +1784,16 @@ const normalizeCoordinatePoint = point => {
 					)
 				)
 				setManualRouteLegDistances(fallbackLegs)
-				setManualRouteRoutingStatus({
-					loading: false,
-					error: error.message || 'Не удалось проложить маршрут',
-				})
-			})
+setManualRouteRoutingStatus({
+loading: false,
+error: error.message || 'Не удалось проложить маршрут',
+})
+})
 
-		return () => {
-			controller.abort()
-		}
-		return () => {
-			controller.abort()
-		}
-	}, [
+return () => {
+controller.abort()
+}
+}, [
 		manualRoutePoints,
 		manualRouteFollowRoads,
 		manualRouteMode,
