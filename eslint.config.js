@@ -38,13 +38,6 @@ export default [
       'react/prop-types': 'off',
       'react/display-name': 'off',
       'react-refresh/only-export-components': 'off',
-      // Линт оставляем максимально информативным, но не требуем исправления
-      // старого кода с множеством предупреждений прямо сейчас.
-      'react-hooks/rules-of-hooks': 'off',
-      'react-hooks/exhaustive-deps': 'off',
-      'no-unused-vars': 'off',
-      'no-undef': 'off',
-      'no-constant-condition': ['off', { checkLoops: false }],
       'no-case-declarations': 'off',
     },
     settings: {
