@@ -8,12 +8,17 @@ import {
 	DrawerHeader,
 	DrawerOverlay,
 	HStack,
+	Button,
+	IconButton,
+	Tooltip,
 	Tag,
 	Text,
 	VStack,
 	Wrap,
 	Divider,
+	SimpleGrid,
 } from '@chakra-ui/react'
+import { LinkIcon, EditIcon, DeleteIcon, ViewIcon, ViewOffIcon } from '@chakra-ui/icons'
 import { MapContainer, Marker, Polyline, TileLayer } from 'react-leaflet'
 import L from 'leaflet'
 import {
@@ -21,6 +26,7 @@ import {
 	createRouteStartMarker,
 } from './ModernMarkerIcon'
 import { resolveRouteAuthor } from '../utils/routeFormatters'
+import { FaMapMarkedAlt } from 'react-icons/fa'
 
 const SURFACE_LABELS = {
 	forest: 'Лесные дороги',
@@ -153,7 +159,7 @@ const RoutePreviewMap = ({ points = [], color, isOpen, mapKey }) => {
 	)
 }
 
-const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
+const RouteDetailsDrawer = ({ isOpen, onClose, route, actions = null }) => {
 	if (!route) return null
 
 	const {
@@ -182,9 +188,63 @@ const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
 		: []
 	const difficultyLabel = difficulty ? DIFFICULTY_LABELS[difficulty] || difficulty : ''
 	const accent = color || '#6366F1'
+	const hasActions = Boolean(actions)
+	const actionItems = []
+
+	if (actions?.onToggleVisibility) {
+		actionItems.push({
+			label: actions.isVisible ? 'Скрыть маршрут' : 'Показать маршрут',
+			onClick: actions.onToggleVisibility,
+			icon: actions.isVisible ? <ViewOffIcon /> : <ViewIcon />,
+			colorScheme: actions.isVisible ? 'blue' : 'gray',
+			variant: 'outline',
+		})
+	}
+	if (actions?.onShare) {
+		actionItems.push({
+			label: 'Поделиться',
+			onClick: actions.onShare,
+			icon: <LinkIcon />,
+			colorScheme: 'teal',
+			variant: 'outline',
+		})
+	}
+	if (actions?.onPublish) {
+		actionItems.push({
+			label: actions.isPublished ? 'Убрать с карты' : 'Опубликовать на карте',
+			onClick: actions.onPublish,
+			icon: <FaMapMarkedAlt />,
+			colorScheme: 'purple',
+			variant: actions.isPublished ? 'solid' : 'outline',
+		})
+	}
+	if (actions?.onEdit) {
+		actionItems.push({
+			label: 'Редактировать',
+			onClick: actions.onEdit,
+			icon: <EditIcon />,
+			colorScheme: 'gray',
+			variant: 'outline',
+		})
+	}
+	if (actions?.onDelete) {
+		actionItems.push({
+			label: 'Удалить',
+			onClick: actions.onDelete,
+			icon: <DeleteIcon />,
+			colorScheme: 'red',
+			variant: 'outline',
+		})
+	}
 
 	return (
-		<Drawer isOpen={isOpen} placement='bottom' onClose={onClose} size='full'>
+		<Drawer
+			isOpen={isOpen}
+			placement='bottom'
+			onClose={onClose}
+			size='full'
+			closeOnOverlayClick
+		>
 			<DrawerOverlay />
 			<DrawerContent
 				bg='transparent'
@@ -192,7 +252,12 @@ const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
 				p={0}
 				position='fixed'
 				inset={0}
-				pointerEvents='none'
+				pointerEvents='auto'
+				onClick={event => {
+					if (event.target === event.currentTarget) {
+						onClose()
+					}
+				}}
 			>
 				<Box
 					bg='white'
@@ -201,7 +266,7 @@ const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
 					h='auto'
 					maxH='90vh'
 					w='100%'
-					maxW={{ base: '100%', md: '500px' }}
+					maxW={{ base: '100%', md: '720px' }}
 					overflow='hidden'
 					position='absolute'
 					left='50%'
@@ -211,6 +276,7 @@ const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
 					mx='auto'
 					mb={0}
 					pointerEvents='auto'
+					onClick={event => event.stopPropagation()}
 				>
 					<DrawerCloseButton top={4} right={4} />
 					<DrawerHeader pb={2} pt={3} px={4}>
@@ -290,6 +356,15 @@ const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
 								)}
 							</Wrap>
 
+							{hasPath ? (
+								<RoutePreviewMap
+									points={points}
+									color={color}
+									isOpen={isOpen}
+									mapKey={`${routeId || 'route'}-${points?.length || 0}`}
+								/>
+							) : null}
+
 							<Box
 								borderWidth='1px'
 								borderColor='gray.200'
@@ -307,31 +382,27 @@ const RouteDetailsDrawer = ({ isOpen, onClose, route }) => {
 								</Text>
 							</Box>
 
-							{shouldShowAuthor || routeId ? (
-								<Box>
-									<Divider my={2} />
-									<Wrap spacing={2} shouldWrapChildren>
-										{routeId ? (
-											<Tag size='sm' variant='subtle' colorScheme='purple'>
-												ID: {routeId}
-											</Tag>
-										) : null}
-										{shouldShowAuthor ? (
-											<Tag size='sm' variant='subtle' colorScheme='gray'>
-												Автор: {authorText}
-											</Tag>
-										) : null}
-									</Wrap>
-								</Box>
-							) : null}
-
-							{hasPath ? (
-								<RoutePreviewMap
-									points={points}
-									color={color}
-									isOpen={isOpen}
-									mapKey={`${routeId || 'route'}-${points?.length || 0}`}
-								/>
+							{hasActions && actionItems.length ? (
+								<SimpleGrid
+									columns={Math.min(5, Math.max(1, actionItems.length))}
+									spacing={2}
+									w='100%'
+								>
+									{actionItems.map(action => (
+										<Tooltip key={action.label} label={action.label} hasArrow>
+											<IconButton
+												size='md'
+												variant={action.variant || 'outline'}
+												colorScheme={action.colorScheme || 'gray'}
+												onClick={action.onClick}
+												icon={action.icon}
+												aria-label={action.label}
+												w='100%'
+												h='44px'
+											/>
+										</Tooltip>
+									))}
+								</SimpleGrid>
 							) : null}
 						</VStack>
 					</DrawerBody>

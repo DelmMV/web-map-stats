@@ -7,13 +7,14 @@ function routesReducer(state, action) {
         ...state, 
         data: action.payload.data, 
         distances: action.payload.distances,
+        metadata: action.payload.metadata || {},
         visibleSessions: Object.keys(action.payload.data).reduce((acc, sessionId) => {
           acc[sessionId] = true;
           return acc;
         }, {})
       };
     case 'CLEAR_ROUTES':
-      return { data: {}, distances: {}, visibleSessions: {} };
+      return { data: {}, distances: {}, metadata: {}, visibleSessions: {} };
     case 'TOGGLE_SESSION':
       return {
         ...state,

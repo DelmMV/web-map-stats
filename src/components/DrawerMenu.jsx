@@ -42,6 +42,7 @@ import {
 	extractDifficulty,
 	extractRouteDateText,
 	extractSurfaceTypes,
+	normalizeCoordinates,
 	formatDifficulty,
 	UNKNOWN_DATE_LABEL,
 } from '../utils/routeHelpers'
@@ -105,6 +106,8 @@ const DrawerMenu = ({
 	const [sharedRoutesPage, setSharedRoutesPage] = useState(1)
 	const [sharedRouteDetails, setSharedRouteDetails] = useState({})
 	const sharedRouteDetailsLoadingRef = useRef(new Set())
+	const sharedRouteDetailsFetchedRef = useRef(new Set())
+	const validatedPublishedSharedIdsRef = useRef(new Set())
 	const [expandedDescriptions, setExpandedDescriptions] = useState(() => new Set())
 	const selectedRouteDetail = useUISelector(state => state.selectedRouteDetail)
 	const selectedRouteActions = useUISelector(state => state.selectedRouteActions)
@@ -113,7 +116,7 @@ const DrawerMenu = ({
 		isOpen: isRouteModalOpen,
 		onOpen: onRouteModalOpen,
 		onClose: onRouteModalClose,
-	} = useDisclosure()
+	} = useDisclosure({ defaultIsOpen: false })
 	const publishedRoutesMap = useUISelector(state => state.publishedRoutesMap)
 	const savedRoutesLoadedRef = useRef(false)
 
@@ -216,9 +219,14 @@ const DrawerMenu = ({
 		const validate = async () => {
 			const toRemove = []
 			for (const [routeId, sharedId] of entries) {
+				if (!sharedId) continue
+				// защищаемся от лавины повторных запросов при множественных рендерах
+				if (validatedPublishedSharedIdsRef.current.has(sharedId)) continue
+				validatedPublishedSharedIdsRef.current.add(sharedId)
 				const alive = await ensureSharedRecordAlive(sharedId)
 				if (alive === false) {
 					toRemove.push(routeId)
+					validatedPublishedSharedIdsRef.current.delete(sharedId)
 				}
 			}
 			if (cancelled || !toRemove.length) return
@@ -240,20 +248,19 @@ const DrawerMenu = ({
 			.filter(
 				id =>
 					id &&
-					!sharedRouteDetails[id] &&
-					!sharedRouteDetailsLoadingRef.current.has(id)
+					!sharedRouteDetailsLoadingRef.current.has(id) &&
+					!sharedRouteDetailsFetchedRef.current.has(id)
 			)
 		if (!idsToFetch.length) return undefined
 		let isMounted = true
 		idsToFetch.forEach(id => {
 			sharedRouteDetailsLoadingRef.current.add(id)
+			sharedRouteDetailsFetchedRef.current.add(id) // mark early to avoid loops
 			fetchSharedRouteById(id)
 				.then(data => {
 					if (!isMounted) return
 					const routePayload = data?.route || data
 					if (!routePayload) return
-					// сохраняем и маршрут, и метаданные (дата/slug), чтобы карточка каталога
-					// могла показывать дату создания даже после подгрузки деталей
 					const mergedPayload = {
 						...routePayload,
 						createdAt:
@@ -281,6 +288,7 @@ const DrawerMenu = ({
 				})
 				.catch(error => {
 					console.error('Failed to load shared route detail:', id, error)
+					sharedRouteDetailsFetchedRef.current.delete(id)
 				})
 				.finally(() => {
 					sharedRouteDetailsLoadingRef.current.delete(id)
@@ -289,7 +297,7 @@ const DrawerMenu = ({
 		return () => {
 			isMounted = false
 		}
-	}, [paginatedSharedRoutes, sharedRouteDetails])
+	}, [paginatedSharedRoutes])
 
 	const renderRouteMetaTags = useCallback(
 		({ distanceText, difficultyLabel, surfaceTypes }) => {
@@ -527,6 +535,14 @@ useEffect(() => {
 		setSelectedRoute(null, null)
 		onRouteModalClose()
 	}, [onRouteModalClose, setSelectedRoute])
+
+	useEffect(() => {
+		if (selectedRouteDetail) {
+			onRouteModalOpen()
+		} else {
+			onRouteModalClose()
+		}
+	}, [selectedRouteDetail, onRouteModalClose, onRouteModalOpen])
 
 	const handleRouteCardKeyDown = (event, action) => {
 		if (!action) return

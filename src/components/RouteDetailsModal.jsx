@@ -242,18 +242,19 @@ const RouteDetailsModal = ({
 	}
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} size='lg' isCentered>
+		<Modal
+			isOpen={isOpen}
+			onClose={onClose}
+			size='lg'
+			isCentered
+			portalProps={{ appendToParentPortal: false }}
+		>
 			<ModalOverlay ref={overlayRef} />
 			<ModalContent
 				bg='white'
 				borderRadius='xl'
 				overflow='hidden'
 				boxShadow='xl'
-				as={draggable ? motion.div : undefined}
-				drag={draggable ? true : undefined}
-				dragConstraints={draggable ? overlayRef : undefined}
-				dragElastic={0.05}
-				dragMomentum={false}
 			>
 				<ModalHeader pb={1}>
 					<VStack align='start' spacing={1}>

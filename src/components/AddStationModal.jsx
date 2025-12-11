@@ -17,6 +17,7 @@ import {
 	VStack,
 } from '@chakra-ui/react'
 import React, { useState } from 'react'
+import { baseButtonStyles, subtleButtonStyles } from '../styles/buttonStyles'
 
 const AddStationModal = ({ isOpen, onClose, onSave }) => {
 	const [markerType, setMarkerType] = useState('charging')
@@ -110,6 +111,7 @@ const AddStationModal = ({ isOpen, onClose, onSave }) => {
 						isLoading={isSaving}
 						loadingText='Добавление...'
 						disabled={isSaving}
+						sx={baseButtonStyles}
 					>
 						Добавить
 					</Button>
@@ -119,6 +121,7 @@ const AddStationModal = ({ isOpen, onClose, onSave }) => {
 							onClose()
 							resetForm()
 						}}
+						sx={subtleButtonStyles}
 					>
 						Отмена
 					</Button>

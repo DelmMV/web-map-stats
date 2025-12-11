@@ -1,6 +1,11 @@
 /**
  * Конфигурация приложения
  */
+//https://api.monopiter.ru/api
+// Основной API бэкенда
+export const API_CONFIG = {
+	BASE_URL: 'http://localhost:5001/api',
+}
 
 // Open-Meteo API Configuration (БЕСПЛАТНО!)
 // Не требует API ключа или регистрации
@@ -165,6 +170,7 @@ export const devLog = {
 
 // Экспорт для обратной совместимости
 export default {
+	API_CONFIG,
 	WEATHER_CONFIG,
 	WEATHER_CODES,
 	WEATHER_ICONS,

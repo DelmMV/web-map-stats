@@ -8,10 +8,11 @@
 }
 
 /* Основной маркер */
+
 .modern-marker {
 	position: relative;
-	width: 18px;
-	height: 24px;
+	width: 22px;
+	height: 30px;
 	cursor: pointer;
 	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 	transform-origin: center bottom;
@@ -19,8 +20,8 @@
 
 /* Pin (основная форма маркера) */
 .marker-pin {
-	width: 18px;
-	height: 18px;
+	width: 22px;
+	height: 22px;
 	border-radius: 50% 50% 50% 0;
 	position: relative;
 	transform: rotate(-45deg);
@@ -48,11 +49,11 @@
 /* Тень маркера */
 .marker-shadow {
 	position: absolute;
-	bottom: -2px;
+	bottom: -4px;
 	left: 50%;
 	transform: translateX(-50%);
-	width: 12px;
-	height: 6px;
+	width: 16px;
+	height: 8px;
 	background: radial-gradient(
 		ellipse at center,
 		rgba(0, 0, 0, 0.2) 0%,
@@ -62,6 +63,31 @@
 	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.marker-badge {
+	position: absolute;
+	top: -6px;
+	right: -8px;
+	font-size: 7px;
+	font-weight: 600;
+	padding: 1px 4px;
+	border-radius: 999px;
+	line-height: 1.2;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+	transform: rotate(0deg);
+	z-index: 20;
+}
+
+.modern-marker.offline-marker .marker-pin {
+	filter: grayscale(0.5);
+	opacity: 0.85;
+}
+
+.modern-marker.offline-marker .marker-icon {
+	opacity: 0.85;
+}
+
 /* Hover эффекты */
 .modern-marker:hover {
 	transform: translateY(-3px) scale(1.1);
@@ -69,13 +95,13 @@
 }
 
 .modern-marker:hover .marker-pin {
-	box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25), 0 3px 8px rgba(0, 0, 0, 0.15);
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), 0 5px 12px rgba(0, 0, 0, 0.15);
 	transform: rotate(-45deg) scale(1.05);
 }
 
 .modern-marker:hover .marker-shadow {
-	width: 16px;
-	height: 8px;
+	width: 20px;
+	height: 10px;
 	opacity: 0.4;
 }
 

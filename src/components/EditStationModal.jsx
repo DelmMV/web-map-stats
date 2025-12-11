@@ -19,6 +19,7 @@ import {
   Box,
   Select,
 } from '@chakra-ui/react';
+import { baseButtonStyles, subtleButtonStyles } from '../styles/buttonStyles';
 
 const EditStationModal = ({ isOpen, onClose, onUpdate, station }) => {
   const [is24Hours, setIs24Hours] = useState(station?.is24Hours || false);
@@ -117,10 +118,11 @@ const EditStationModal = ({ isOpen, onClose, onUpdate, station }) => {
             isLoading={isUpdating}
             loadingText="Обновление..."
             disabled={isUpdating}
+            sx={baseButtonStyles}
           >
             Обновить
           </Button>
-          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="ghost" onClick={onClose} sx={subtleButtonStyles}>Отмена</Button>
         </ModalFooter>
       </ModalContent>
     </Modal>

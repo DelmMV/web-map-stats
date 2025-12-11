@@ -15,8 +15,11 @@ const createModernMarkerIcon = ({
 	color = '#4285f4',
 	iconPath = '',
 	isPulsing = false,
-	size = [18, 24],
+	size = [22, 30],
 	className = '',
+	badgeLabel = '',
+	badgeColor = '#111827',
+	badgeTextColor = '#fff',
 }) => {
 	const uniqueId = `marker-${type}-${Math.random().toString(36).substr(2, 9)}`
 
@@ -34,9 +37,14 @@ const createModernMarkerIcon = ({
 					</svg>
 				</div>
 			</div>
+			${
+				badgeLabel
+					? `<div class="marker-badge" style="background:${badgeColor};color:${badgeTextColor};">${badgeLabel}</div>`
+					: ''
+			}
 			<div class="marker-shadow"></div>
-			${isPulsing ? '<div class="marker-pulse"></div>' : ''}
-		</div>
+	${isPulsing ? '<div class="marker-pulse"></div>' : ''}
+	</div>
 	`
 
 	return L.divIcon({

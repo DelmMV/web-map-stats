@@ -45,7 +45,7 @@ const MapTopControls = ({
 			alignItems='flex-start'
 			gap='6px'
 		>
-			<HStack align='center' spacing='10px' flexWrap='wrap'>
+			<HStack align='center' spacing='10px' flexWrap='nowrap'>
 				{!isDesktopSidebar && (
 					<IconButton
 						as={motion.button}
@@ -77,9 +77,10 @@ const MapTopControls = ({
 					variant='solid'
 					onClick={onEditModeToggle}
 					px={4}
+					ml={{ base: '16px', md: 0 }}
 					sx={baseButtonStyles}
 				>
-					Режим редактирования
+					Редактирования
 				</Button>
 				{isGuestView && (
 					<Button
@@ -102,12 +103,18 @@ const MapTopControls = ({
 			)}
 			<Collapse in={isEditMode} animateOpacity>
 				<HStack
-					align='center'
-					spacing='10px'
-					flexWrap='wrap'
-					mt='4px'
-					ml={{ base: '52px', md: '60px' }}
-				>
+						align='center'
+						spacing='10px'
+						flexWrap='nowrap'
+						overflowX='auto'
+						whiteSpace='nowrap'
+						mt='4px'
+						ml={{ base: '52px', md: '60px' }}
+						sx={{
+							scrollbarWidth: 'none',
+							'&::-webkit-scrollbar': { display: 'none' },
+						}}
+					>
 					<Button
 						as={motion.button}
 						{...motionButtonProps}
@@ -116,9 +123,11 @@ const MapTopControls = ({
 						variant='solid'
 						onClick={onManualRouteToggle}
 						px={4}
+						whiteSpace='nowrap'
 						sx={baseButtonStyles}
+						leftIcon={manualRouteMode ? undefined : <AddIcon/>}
 					>
-						{manualRouteMode ? 'Отменить' : 'Добавить маршрут'}
+						{manualRouteMode ? ' - Отменить' : 'Маршрут'}
 					</Button>
 					<Button
 						as={motion.button}
@@ -129,9 +138,10 @@ const MapTopControls = ({
 						leftIcon={<AddIcon />}
 						onClick={onAddStation}
 						isDisabled={isAddingStation}
+						whiteSpace='nowrap'
 						sx={baseButtonStyles}
 					>
-						Добавить станцию
+						Маркер
 					</Button>
 				</HStack>
 			</Collapse>

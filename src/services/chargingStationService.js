@@ -1,4 +1,6 @@
-const API_BASE_URL = 'https://api.monopiter.ru/api';
+import { API_CONFIG } from '../utils/config';
+
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 export const fetchChargingStations = async () => {
   const response = await fetch(`${API_BASE_URL}/charging-stations`);
@@ -36,6 +38,30 @@ export const deleteChargingStation = async (id) => {
   });
   if (!response.ok) {
     throw new Error('Не удалось удалить маркер зарядной станции');
+  }
+  return response.json();
+};
+
+export const updateChargingStationStatus = async (station, isOffline, userId) => {
+  const stationId = station?._id ?? station?.id;
+  if (!stationId) {
+    throw new Error('Неизвестный идентификатор станции');
+  }
+  const formData = new FormData();
+  formData.append('latitude', station.latitude);
+  formData.append('longitude', station.longitude);
+  formData.append('is24Hours', station.is24Hours || false);
+  formData.append('markerType', station.markerType || 'charging');
+  formData.append('comment', station.comment || '');
+  formData.append('userId', userId);
+  formData.append('isOffline', isOffline);
+
+  const response = await fetch(`${API_BASE_URL}/charging-stations/${stationId}`, {
+    method: 'PUT',
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error('Не удалось обновить статус зарядной станции');
   }
   return response.json();
 };

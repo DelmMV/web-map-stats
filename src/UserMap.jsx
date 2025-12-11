@@ -101,6 +101,7 @@ import {
 	baseIconButtonStyles,
 	motionButtonProps,
 } from './styles/buttonStyles'
+import { useUISelector, useUIStore } from './state/uiStore.jsx'
 
 const AddStationModal = lazy(() => import('./components/AddStationModal'))
 const EditStationModal = lazy(() => import('./components/EditStationModal'))
@@ -1125,24 +1126,11 @@ const [savedRoutesStatus, setSavedRoutesStatus] = useState({
 	loading: true,
 	error: null,
 })
-	const [visibleSavedRouteIds, setVisibleSavedRouteIds] = useState(() => {
-		try {
-			const stored = localStorage.getItem('visibleSavedRouteIds')
-			return stored ? JSON.parse(stored) : []
-		} catch (error) {
-			return []
-		}
-	})
-	useEffect(() => {
-		try {
-			localStorage.setItem(
-				'visibleSavedRouteIds',
-				JSON.stringify(visibleSavedRouteIds)
-			)
-		} catch (error) {
-			console.error('Error persisting saved route visibility:', error)
-		}
-	}, [visibleSavedRouteIds])
+	const { setPublishedRoutesMap, setVisibleSavedRouteIds } = useUIStore()
+	const publishedRoutesMap = useUISelector(state => state.publishedRoutesMap)
+	const visibleSavedRouteIds = useUISelector(
+		state => state.visibleSavedRouteIds || []
+	)
 	useEffect(() => {
 		setVisibleSavedRouteIds(prevIds => {
 			if (!savedRoutes || savedRoutes.length === 0) {
@@ -1159,29 +1147,7 @@ const [savedRoutesStatus, setSavedRoutesStatus] = useState({
 			}
 			return filtered
 		})
-	}, [savedRoutes])
-
-	useEffect(() => {
-		const handleStorage = event => {
-			if (event.key === 'visibleSavedRouteIds') {
-				try {
-					const parsed = event.newValue ? JSON.parse(event.newValue) : []
-					setVisibleSavedRouteIds(prev => {
-						const prevSerialized = JSON.stringify(prev)
-						const nextSerialized = JSON.stringify(parsed)
-						return prevSerialized === nextSerialized ? prev : parsed
-					})
-				} catch (error) {
-					console.error('Error syncing saved route visibility:', error)
-				}
-			}
-		}
-
-		window.addEventListener('storage', handleStorage)
-		return () => {
-			window.removeEventListener('storage', handleStorage)
-		}
-	}, [])
+	}, [savedRoutes, setVisibleSavedRouteIds])
 
 	const {
 		data: activeUsers,
@@ -1230,17 +1196,11 @@ const [savedRoutesStatus, setSavedRoutesStatus] = useState({
 	const toast = useToast()
 	const isAdmin = admins.includes(userId)
 	const mapRef = useRef(null)
-	const [preferredCityCoords, setPreferredCityCoords] = useState(() => {
-		const stored = loadPreferredCityCoords()
-		return stored
-	})
+	const preferredCityCoords = useUISelector(state => state.preferredCityCoords)
+	const mapLayer = useUISelector(state => state.mapLayer)
 	const [mapCenter, setMapCenter] = useState(() => {
 		const stored = loadPreferredCityCoords()
 		return stored ? [stored.lat, stored.lng] : DEFAULT_MAP_CENTER
-	})
-
-	const [mapLayer, setMapLayer] = useState(() => {
-		return localStorage.getItem('mapLayer') || 'default'
 	})
 
 	const [selectedWorkshop, setSelectedWorkshop] = useState(null)
@@ -1355,21 +1315,21 @@ const normalizeCoordinatePoint = point => {
 		}))
 	}, [manualRouteProfile, setManualRouteMeta])
 
-	// Добавляем эффект для синхронизации состояния с localStorage
+	const { setMapLayer, setPreferredCityCoords } = useUIStore()
 	useEffect(() => {
-		const handleStorageChange = () => {
-			const storedLayer = localStorage.getItem('mapLayer')
-			if (storedLayer && storedLayer !== mapLayer) {
-				setMapLayer(storedLayer)
+		if (
+			preferredCityCoords &&
+			typeof preferredCityCoords.lat === 'number' &&
+			typeof preferredCityCoords.lng === 'number'
+		) {
+			const nextCenter = [preferredCityCoords.lat, preferredCityCoords.lng]
+			setMapCenter(nextCenter)
+			if (mapRef.current) {
+				mapRef.current.setView(nextCenter, 12)
 			}
 		}
+	}, [preferredCityCoords])
 
-		window.addEventListener('storage', handleStorageChange)
-
-		return () => {
-			window.removeEventListener('storage', handleStorageChange)
-		}
-	}, [mapLayer])
 	useEffect(() => {
 		const handlePreferredCityStorage = event => {
 			if (event.key === PREFERRED_CITY_STORAGE_KEY) {
@@ -1392,25 +1352,14 @@ const normalizeCoordinatePoint = point => {
 			window.removeEventListener('storage', handlePreferredCityStorage)
 			window.removeEventListener('preferredCityChange', handlePreferredCityEvent)
 		}
-	}, [])
-	useEffect(() => {
-		if (
-			preferredCityCoords &&
-			typeof preferredCityCoords.lat === 'number' &&
-			typeof preferredCityCoords.lng === 'number'
-		) {
-			const nextCenter = [preferredCityCoords.lat, preferredCityCoords.lng]
-			setMapCenter(nextCenter)
-			if (mapRef.current) {
-				mapRef.current.setView(nextCenter, 12)
-			}
-		}
-	}, [preferredCityCoords])
+	}, [setPreferredCityCoords])
 
-	const handleMapLayerChange = useCallback(newLayer => {
-		setMapLayer(newLayer)
-		localStorage.setItem('mapLayer', newLayer)
-	}, [])
+	const handleMapLayerChange = useCallback(
+		newLayer => {
+			setMapLayer(newLayer || 'default')
+		},
+		[setMapLayer]
+	)
 
 	const toggleActiveUsers = useCallback(() => {
 		setShowActiveUsers(prev => !prev)
@@ -2602,16 +2551,15 @@ const handleManualRouteComplete = useCallback(async () => {
 			try {
 				let sharedId = null
 				try {
-					const stored =
-						typeof window !== 'undefined'
-							? localStorage.getItem('publishedRoutesMap')
-							: null
-					const map = stored ? JSON.parse(stored) : null
-					if (map && typeof map === 'object') {
-						sharedId = map[routeId] || null
+					const route = savedRoutes.find(item => item?.routeId === routeId)
+					if (route?.sharedId) {
+						sharedId = route.sharedId
 					}
-				} catch (error) {
-					console.warn('Failed to read publishedRoutesMap from storage:', error)
+				} catch (lookupError) {
+					console.warn('Failed to read sharedId from savedRoutes:', lookupError)
+				}
+				if (!sharedId && publishedRoutesMap && publishedRoutesMap[routeId]) {
+					sharedId = publishedRoutesMap[routeId]
 				}
 				if (sharedId) {
 					try {
@@ -2619,25 +2567,18 @@ const handleManualRouteComplete = useCallback(async () => {
 					} catch (error) {
 						console.warn('Failed to remove shared route on delete:', error)
 					}
-					try {
-						if (typeof window !== 'undefined') {
-							const stored = localStorage.getItem('publishedRoutesMap')
-							const map = stored ? JSON.parse(stored) : null
-							if (map && typeof map === 'object') {
-								delete map[routeId]
-								localStorage.setItem(
-									'publishedRoutesMap',
-									JSON.stringify(map)
-								)
-							}
-							window.dispatchEvent(
-								new CustomEvent('shared-route-published', {
-									detail: { sharedId, routeId, removed: true },
-								})
-							)
-						}
-					} catch (storageError) {
-						console.warn('Failed to update publishedRoutesMap storage:', storageError)
+					setPublishedRoutesMap(prev => {
+						if (!prev || typeof prev !== 'object') return prev
+						const next = { ...prev }
+						delete next[routeId]
+						return next
+					})
+					if (typeof window !== 'undefined') {
+						window.dispatchEvent(
+							new CustomEvent('shared-route-published', {
+								detail: { sharedId, routeId, removed: true },
+							})
+						)
 					}
 				}
 
@@ -2649,7 +2590,7 @@ const handleManualRouteComplete = useCallback(async () => {
 				console.error('Error deleting route:', error)
 			}
 		},
-		[userId]
+		[userId, savedRoutes, publishedRoutesMap, setPublishedRoutesMap]
 	)
 
 	const handleToggleSavedRouteVisibility = useCallback(routeId => {
@@ -2659,7 +2600,7 @@ const handleManualRouteComplete = useCallback(async () => {
 				? prev.filter(id => id !== routeId)
 				: [routeId, ...prev]
 		)
-	}, [])
+	}, [setVisibleSavedRouteIds])
 
 	const selectedTrackRenderList = useMemo(() => {
 		return selectedTrackIds
@@ -3446,7 +3387,7 @@ const handleManualRouteComplete = useCallback(async () => {
 						boxShadow='sm'
 					/>
 					<Box
-						bg='white'
+						bg='rgba(238, 231, 231, 0.4)'
 						borderRadius='md'
 						boxShadow='md'
 						p='8px'
@@ -3455,6 +3396,7 @@ const handleManualRouteComplete = useCallback(async () => {
 						gap='10px'
 						cursor='default'
 						data-no-drag
+						
 					>
 						<Box
 							display='flex'

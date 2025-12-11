@@ -1226,6 +1226,19 @@ components:
           items:
             type: string
           description: Типы покрытий
+        sharedId:
+          type: string
+          nullable: true
+        sharedExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        sharedUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isShared:
+          type: boolean
         waypoints:
           type: array
           items:
@@ -1315,6 +1328,12 @@ components:
       type: object
       required: [name, waypoints, authorId]
       properties:
+        sharedId:
+          type: string
+          description: Укажите, чтобы обновить существующую ссылку
+        routeId:
+          type: string
+          description: ID исходного маршрута в профиле (для обновления без sharedId)
         name:
           type: string
         description:
@@ -1600,6 +1619,17 @@ components:
                 properties:
                   sharedId:
                     type: string
+        '200':
+          description: Маршрут обновлён
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sharedId:
+                    type: string
+                  updated:
+                    type: boolean
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':

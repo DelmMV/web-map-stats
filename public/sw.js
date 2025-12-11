@@ -1,11 +1,5 @@
-self.addEventListener('install', (event) => {
-  console.log('Service worker installed');
-});
-
-self.addEventListener('activate', (event) => {
-  console.log('Service worker activated');
-});
-
-self.addEventListener('fetch', (event) => {
-  console.log('Fetch intercepted for:', event.request.url);
-});
+// Simple service worker placeholder to enable PWA in production builds.
+// Убираем лишние логи и не вмешиваемся в fetch, чтобы не спамить консоль.
+self.addEventListener('install', () => {})
+self.addEventListener('activate', () => {})
+self.addEventListener('fetch', () => {})

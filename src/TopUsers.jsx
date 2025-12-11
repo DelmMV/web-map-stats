@@ -15,6 +15,10 @@ import {
 } from '@chakra-ui/react'
 import React, { useEffect, useState } from 'react'
 
+import { API_CONFIG } from './utils/config'
+
+const API_BASE_URL = API_CONFIG.BASE_URL
+
 const TopUsers = ({ userId, admins }) => {
 	// Защита от undefined userId
 	if (!userId) {
@@ -47,13 +51,11 @@ const TopUsers = ({ userId, admins }) => {
 			setError(null)
 			try {
 				const responses = await Promise.all([
-					fetch(`https://api.monopiter.ru/api/top-users/${period}`),
-					fetch(`https://api.monopiter.ru/api/top-sessions/${period}`),
-					fetch(`https://api.monopiter.ru/api/top-daily-distances/${period}`),
-					fetch(`https://api.monopiter.ru/api/total-distance/${period}`),
-					fetch(
-						`https://api.monopiter.ru/api/total-category-by-distance/${period}`
-					),
+					fetch(`${API_BASE_URL}/top-users/${period}`),
+					fetch(`${API_BASE_URL}/top-sessions/${period}`),
+					fetch(`${API_BASE_URL}/top-daily-distances/${period}`),
+					fetch(`${API_BASE_URL}/total-distance/${period}`),
+					fetch(`${API_BASE_URL}/total-category-by-distance/${period}`),
 				])
 
 				const results = await Promise.all(

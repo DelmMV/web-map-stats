@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { API_CONFIG } from '../utils/config'
+
 const CACHE_TIME = 1000 * 60 * 5 // 5 минут
 const STALE_TIME = 1000 * 60 // 1 минута
 
 const fetchActiveUsers = async () => {
-	const response = await fetch('https://api.monopiter.ru/api/active-users')
+	const response = await fetch(`${API_CONFIG.BASE_URL}/active-users`)
 	if (!response.ok) {
 		throw new Error('Ошибка при загрузке активных пользователей')
 	}
